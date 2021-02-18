@@ -24,7 +24,7 @@ class Joystick:
         y = 1 - np.cos(2*np.pi*fc*dT)
         self.alpha = -y+np.sqrt(y*y+2*y)
 
-        tc = 0.04  #  cutoff frequency at 50 Hz
+        tc = 0.02  #  cutoff frequency at 50 Hz
         dT = 0.0020  # velocity reference is updated every ms
         self.alpha = dT / tc
 
