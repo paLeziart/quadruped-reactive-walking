@@ -1,5 +1,10 @@
 # coding: utf8
 
+import os
+import sys
+
+sys.path.insert(0, './solopython')
+
 import threading
 from solopython.utils.viewerClient import viewerClient, NonBlockingViewerFromRobot
 from solopython.utils.logger import Logger
@@ -10,7 +15,7 @@ import argparse
 import pinocchio as pin
 
 
-SIMULATION = True
+SIMULATION = False
 LOGGING = False
 
 if SIMULATION:
@@ -83,7 +88,7 @@ def control_loop(name_interface):
     t = 0.0  # Time
     T_gait = 0.32  # Duration of one gait period
     T_mpc = 0.32   # Duration of the prediction horizon
-    N_SIMULATION = 50000  # number of simulated wbc time steps
+    N_SIMULATION = 25000  # number of simulated wbc time steps
 
     # Which MPC solver you want to use
     # True to have PA's MPC, to False to have Thomas's MPC
@@ -99,7 +104,7 @@ def control_loop(name_interface):
     use_flat_plane = True
 
     # If we are using a predefined reference velocity (True) or a joystick (False)
-    predefined_vel = True
+    predefined_vel = False
 
     # Enable or disable PyBullet GUI
     enable_pyb_GUI = True
