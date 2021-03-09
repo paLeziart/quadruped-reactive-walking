@@ -8,6 +8,7 @@ using Vector3 = Eigen::Matrix<double, 3, 1>;
 using Vector4 = Eigen::Matrix<double, 4, 1>;
 using Vector5 = Eigen::Matrix<double, 5, 1>;
 using Vector6 = Eigen::Matrix<double, 6, 1>;
+using Vector11 = Eigen::Matrix<double, 11, 1>;
 using Vector12 = Eigen::Matrix<double, 12, 1>;
 using Vector19 = Eigen::Matrix<double, 1, 1>;
 using VectorN = Eigen::Matrix<double, Eigen::Dynamic, 1>;
