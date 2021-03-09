@@ -47,6 +47,8 @@ set(${PROJECT_NAME}_HEADERS
   include/${PROJECT_NAME}/gepadd.hpp
   include/${PROJECT_NAME}/MPC.hpp
   include/${PROJECT_NAME}/Planner.hpp
+  include/${PROJECT_NAME}/FootTrajectoryGenerator.h
+  include/${PROJECT_NAME}/Types.h
   include/${PROJECT_NAME}/InvKin.hpp
   include/${PROJECT_NAME}/QPWBC.hpp
   include/other/st_to_cc.hpp
@@ -60,6 +62,7 @@ set(${PROJECT_NAME}_SOURCES
   src/st_to_cc.cpp
   src/gepadd.cpp
   src/MPC.cpp
+  src/FootTrajectoryGenerator.cpp
   src/Planner.cpp
   src/InvKin.cpp
   src/QPWBC.cpp
