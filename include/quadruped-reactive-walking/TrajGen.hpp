@@ -89,7 +89,7 @@ public:
     /// \param[in] target desired target location at the end of the swing phase
     ///
     ////////////////////////////////////////////////////////////////////////////////////////////////
-    TrajGen(double const h_in, double const t_lock_in, Vector3 const& targetFootstepIn);  // Default constructor
+    TrajGen(double const maxHeightIn, double const lockTimeIn, Vector3 const& targetFootstepIn);  // Default constructor
 
     ////////////////////////////////////////////////////////////////////////////////////////////////
     ///
@@ -102,28 +102,39 @@ public:
     ///
     /// \brief updates the nex foot position, velocity and acceleration, and the foot goal position
     ///
-    /// \param[in] x current position of the foot
-    /// \param[in] v current velocity of the foot
     /// \param[in] a current acceleration of the foot
+    /// \param[in] v current velocity of the foot
+    /// \param[in] x current position of the foot
     /// \param[in] target desired target location at the end of the swing phase
     /// \param[in] t time elapsed since the start of the swing phase
-    /// \param[in] duration duration of the swing phase
+    /// \param[in] d duration of the swing phase
     /// \param[in] dt time step of the control
     ///
     ////////////////////////////////////////////////////////////////////////////////////////////////
-    Vector11 get_next_foot(double x0, double dx0, double ddx0, double y0, double dy0, double ddy0,
-                           Vector3 const& targetFootstep, double t0, double t1, double dt);
+    Vector11 get_next_foot(Vector3 const& position,
+                           Vector3 const& velocity,
+                           Vector3 const& acceleration,
+                           Vector3 const& targetFootstep,
+                           double const t,
+                           double const d,
+                           double const dt);
+
+    Vector3 getTargetPosition() { return targetFootstep_; }  ///< Get the foot goal position
+    Vector3 getFootPosition() { return position_; }          ///< Get the next foot position
+    Vector3 getFootVelocity() { return velocity_; }          ///< Get the next foot velocity
+    Vector3 getFootAcceleration() { return acceleration_; }  ///< Get the next foot acceleration
 
 private:
-    Vector6 lastCoeffs_x;    // Coefficients for the X component
-    Vector6 lastCoeffs_y;    // Coefficients for the Y component
-    double maxHeight_;       // Apex height of the swinging trajectory
-    double lockTime_;        // Target lock before the touchdown
-    Vector3 targetFootstep_;  // Target for the X component
-    Vector11 result_;        // Output of the generator
+    Vector6 Ax;  ///< Coefficients for the X component
+    Vector6 Ay;  ///< Coefficients for the Y component
 
-    // Coefficients
-    double Ax5 = 0.0, Ax4 = 0.0, Ax3 = 0.0, Ax2 = 0.0, Ax1 = 0.0, Ax0 = 0.0, Ay5 = 0.0, Ay4 = 0.0, Ay3 = 0.0, Ay2 = 0.0,
-           Ay1 = 0.0, Ay0 = 0.0, Az6 = 0.0, Az5 = 0.0, Az4 = 0.0, Az3 = 0.0;
+    double maxHeight_;  ///< Apex height of the swinging trajectory
+    double lockTime_;   ///< Target lock before the touchdown
+
+    Vector3 targetFootstep_;  // Target for the X component
+
+    Vector3 position_;      // position computed in updateFootPosition
+    Vector3 velocity_;      // velocity computed in updateFootPosition
+    Vector3 acceleration_;  // acceleration computed in updateFootPosition
 };
 #endif  // PLANNER_H_INCLUDED

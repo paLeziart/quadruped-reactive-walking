@@ -628,9 +628,14 @@ int Planner::update_trajectory_generator(int k, double h_estim)
         {
             Vector3 targetFootstep;
             targetFootstep << footsteps_target(0, i_foot), footsteps_target(1, i_foot), 0.0;
+            Vector3 position;
+            position << mgoals(0, i_foot), mgoals(3, i_foot), 0.0;
+            Vector3 velocity = Vector3::Zero();
+            Vector3 acceleration = Vector3::Zero();
+
             res_gen.col(i_foot)
                 = (myTrajGen[i_foot])
-                      .get_next_foot(mgoals(0, i_foot), 0.0, 0.0, mgoals(3, i_foot), 0.0, 0.0, targetFootstep, t0s[i], t_swing[i_foot], dt_tsid);
+                      .get_next_foot(position, velocity, acceleration, targetFootstep, t0s[i], t_swing[i_foot], dt_tsid);
 
             mgoals.col(i_foot) << res_gen.block(0, i_foot, 6, 1);
         }
@@ -639,9 +644,15 @@ int Planner::update_trajectory_generator(int k, double h_estim)
             Vector3 targetFootstep;
             targetFootstep << footsteps_target(0, i_foot), footsteps_target(1, i_foot), 0.0;
 
+            Vector3 position;
+            position << mgoals(0, i_foot), mgoals(3, i_foot), 0.0;
+            Vector3 velocity;
+            velocity << mgoals(1, i_foot), mgoals(4, i_foot), 0.0;
+            Vector3 acceleration;
+            acceleration << mgoals(2, i_foot), mgoals(5, i_foot), 0.0;
+
             res_gen.col(i_foot) = (myTrajGen[i_foot])
-                                      .get_next_foot(mgoals(0, i_foot), mgoals(1, i_foot), mgoals(2, i_foot), mgoals(3, i_foot),
-                                                     mgoals(4, i_foot), mgoals(5, i_foot), targetFootstep, t0s[i], t_swing[i_foot], dt_tsid);
+                                      .get_next_foot(position, velocity, acceleration, targetFootstep, t0s[i], t_swing[i_foot], dt_tsid);
 
             mgoals.col(i_foot) << res_gen.block(0, i_foot, 6, 1);
         }
