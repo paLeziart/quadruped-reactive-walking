@@ -50,7 +50,6 @@ struct PlannerPythonVisitor : public bp::def_visitor<PlannerPythonVisitor<Planne
         .def("get_goals", &Planner::get_goals, "Get position goals matrix.\n")
         .def("get_vgoals", &Planner::get_vgoals, "Get velocity goals matrix.\n")
         .def("get_agoals", &Planner::get_agoals, "Get acceleration goals matrix.\n")
-        //.add_property("xref", &Planner::get_xref)
 
         // Run Planner from Python
         .def("run_planner", &Planner::run_planner, bp::args("k", "q", "v", "b_vref", "h_estim", "z_average", "joystick_code"),
@@ -60,7 +59,7 @@ struct PlannerPythonVisitor : public bp::def_visitor<PlannerPythonVisitor<Planne
   static void expose() {
     bp::class_<Planner>("Planner", bp::no_init).def(PlannerPythonVisitor<Planner>());
 
-    ENABLE_SPECIFIC_MATRIX_TYPE(matXd);
+    ENABLE_SPECIFIC_MATRIX_TYPE(MatrixN);
   }
 };
 

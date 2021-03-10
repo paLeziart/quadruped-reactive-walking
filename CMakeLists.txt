@@ -47,7 +47,8 @@ set(${PROJECT_NAME}_HEADERS
   include/qrw/gepadd.hpp
   include/qrw/MPC.hpp
   include/qrw/Planner.hpp
-  include/qrw/TrajGen.hpp
+  include/qrw/Gait.hpp
+  include/qrw/FootTrajectoryGenerator.hpp
   include/qrw/Types.h
   include/qrw/InvKin.hpp
   include/qrw/QPWBC.hpp
@@ -58,7 +59,8 @@ set(${PROJECT_NAME}_SOURCES
   src/st_to_cc.cpp
   src/gepadd.cpp
   src/MPC.cpp
-  src/TrajGen.cpp
+  src/Gait.cpp
+  src/FootTrajectoryGenerator.cpp
   src/Planner.cpp
   src/InvKin.cpp
   src/QPWBC.cpp
