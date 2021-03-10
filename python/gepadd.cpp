@@ -1,8 +1,8 @@
-#include "quadruped-reactive-walking/gepadd.hpp"
-#include "quadruped-reactive-walking/MPC.hpp"
-#include "quadruped-reactive-walking/Planner.hpp"
-#include "quadruped-reactive-walking/InvKin.hpp"
-#include "quadruped-reactive-walking/QPWBC.hpp"
+#include "qrw/gepadd.hpp"
+#include "qrw/MPC.hpp"
+#include "qrw/Planner.hpp"
+#include "qrw/InvKin.hpp"
+#include "qrw/QPWBC.hpp"
 
 #include <eigenpy/eigenpy.hpp>
 #include <boost/python.hpp>

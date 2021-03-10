@@ -1,7 +1,7 @@
-#include "quadruped-reactive-walking/Planner.hpp"
+#include "qrw/Planner.hpp"
 
 Planner::Planner(double dt_in, double dt_tsid_in, double T_gait_in, double T_mpc_in, int k_mpc_in, bool on_solo8_in,
-                 double h_ref_in, const Eigen::MatrixXd& fsteps_in)
+                 double h_ref_in, const MatrixN& fsteps_in)
 {
     // Parameters from the main controller
     dt = dt_in;
@@ -38,16 +38,17 @@ Planner::Planner(double dt_in, double dt_tsid_in, double T_gait_in, double T_mpc
     create_gait_f();
 
     // For foot trajectory generator
-    goals << fsteps_in.block(0, 0, 3, 4);
-    mgoals.row(0) << fsteps_in.block(0, 0, 1, 4);
-    mgoals.row(3) << fsteps_in.block(1, 0, 1, 4);
+
 
     // One foot trajectory generator per leg
     for (int i = 0; i < 4; i++)
     {
-        Vector3 targetFootstep;
-        targetFootstep << shoulders(0, i), shoulders(1, i), 0.0;
-        myTrajGen.push_back(TrajGen(max_height_feet, t_lock_before_touchdown, targetFootstep));
+        nextFootPosition_.push_back({fsteps_in.col(i)});
+        nextFootVelocity_.push_back(Vector3::Zero());
+        nextFootAcceleration_.push_back(Vector3::Zero());
+
+        targetFootstep_.push_back({shoulders(0, i), shoulders(1, i), 0.0});
+        footTrajectoryGenerators.push_back(TrajGen(maxHeight_, lockTime_, targetFootstep_[i]));
     }
 }
 
@@ -237,7 +238,7 @@ int Planner::create_gait_f()
     return 0;
 }
 
-int Planner::compute_footsteps(Eigen::MatrixXd q_cur, Eigen::MatrixXd v_cur, Eigen::MatrixXd v_ref)
+int Planner::compute_footsteps(MatrixN q_cur, MatrixN v_cur, MatrixN v_ref)
 {
     /* Compute a X by 13 matrix containing the remaining number of steps of each phase of the gait (first column)
   and the [x, y, z]^T desired position of each foot for each phase of the gait (12 other columns).
@@ -443,7 +444,7 @@ int Planner::compute_next_footstep(int i, int j)
     return 0;
 }
 
-int Planner::getRefStates(Eigen::MatrixXd q, Eigen::MatrixXd v, Eigen::MatrixXd vref, double z_average)
+int Planner::getRefStates(MatrixN q, MatrixN v, MatrixN vref, double z_average)
 {
     /* Compute the reference trajectory of the CoM for each time step of the
   predition horizon. The ouput is a matrix of size 12 by (N+1) with N the number
@@ -623,50 +624,24 @@ int Planner::update_trajectory_generator(int k, double h_estim)
     {
         int i_foot = feet[i];
 
-        // Get desired 3D position, velocity and acceleration
-        if ((t0s[i] == 0.000) || (k == 0))
-        {
-            Vector3 targetFootstep;
-            targetFootstep << footsteps_target(0, i_foot), footsteps_target(1, i_foot), 0.0;
-            Vector3 position;
-            position << mgoals(0, i_foot), mgoals(3, i_foot), 0.0;
-            Vector3 velocity = Vector3::Zero();
-            Vector3 acceleration = Vector3::Zero();
+        targetFootstep_[i_foot] << footsteps_target(0, i_foot), footsteps_target(1, i_foot), 0.0;
+        footTrajectoryGenerators[i_foot].updateFootPosition(nextFootPosition_[i_foot],
+                                                            nextFootVelocity_[i_foot],
+                                                            nextFootAcceleration_[i_foot],
+                                                            targetFootstep_[i_foot],
+                                                            t0s[i],
+                                                            t_swing[i_foot],
+                                                            dt_tsid);
 
-            res_gen.col(i_foot)
-                = (myTrajGen[i_foot])
-                      .get_next_foot(position, velocity, acceleration, targetFootstep, t0s[i], t_swing[i_foot], dt_tsid);
-
-            mgoals.col(i_foot) << res_gen.block(0, i_foot, 6, 1);
-        }
-        else
-        {
-            Vector3 targetFootstep;
-            targetFootstep << footsteps_target(0, i_foot), footsteps_target(1, i_foot), 0.0;
-
-            Vector3 position;
-            position << mgoals(0, i_foot), mgoals(3, i_foot), 0.0;
-            Vector3 velocity;
-            velocity << mgoals(1, i_foot), mgoals(4, i_foot), 0.0;
-            Vector3 acceleration;
-            acceleration << mgoals(2, i_foot), mgoals(5, i_foot), 0.0;
-
-            res_gen.col(i_foot) = (myTrajGen[i_foot])
-                                      .get_next_foot(position, velocity, acceleration, targetFootstep, t0s[i], t_swing[i_foot], dt_tsid);
-
-            mgoals.col(i_foot) << res_gen.block(0, i_foot, 6, 1);
-        }
-
-        // Store desired position, velocity and acceleration for later call to this function
-        goals.col(i_foot) << res_gen(0, i_foot), res_gen(3, i_foot), res_gen(6, i_foot);
-        vgoals.col(i_foot) << res_gen(1, i_foot), res_gen(4, i_foot), res_gen(7, i_foot);
-        agoals.col(i_foot) << res_gen(2, i_foot), res_gen(5, i_foot), res_gen(8, i_foot);
+        nextFootPosition_[i_foot] = footTrajectoryGenerators[i_foot].getFootPosition();
+        nextFootVelocity_[i_foot] = footTrajectoryGenerators[i_foot].getFootVelocity();
+        nextFootAcceleration_[i_foot] = footTrajectoryGenerators[i_foot].getFootAcceleration();
     }
 
     return 0;
 }
 
-int Planner::run_planner(int k, const Eigen::MatrixXd& q, const Eigen::MatrixXd& v, const Eigen::MatrixXd& b_vref_in,
+int Planner::run_planner(int k, const MatrixN& q, const MatrixN& v, const MatrixN& b_vref_in,
                          double h_estim, double z_average, int joystick_code)
 {
     /* Run the planner for one iteration of the main control loop
@@ -715,12 +690,12 @@ int Planner::run_planner(int k, const Eigen::MatrixXd& q, const Eigen::MatrixXd&
     return 0;
 }
 
-Eigen::MatrixXd Planner::get_xref() { return xref; }
-Eigen::MatrixXd Planner::get_fsteps() { return fsteps; }
-Eigen::MatrixXd Planner::get_gait() { return gait_f; }
-Eigen::MatrixXd Planner::get_goals() { return goals; }
-Eigen::MatrixXd Planner::get_vgoals() { return vgoals; }
-Eigen::MatrixXd Planner::get_agoals() { return agoals; }
+MatrixN Planner::get_xref() { return xref; }
+MatrixN Planner::get_fsteps() { return fsteps; }
+MatrixN Planner::get_gait() { return gait_f; }
+Matrix3N Planner::get_goals() { return vectorToMatrix(nextFootPosition_); }
+Matrix3N Planner::get_vgoals() { return vectorToMatrix(nextFootVelocity_); }
+Matrix3N Planner::get_agoals() { return vectorToMatrix(nextFootAcceleration_); }
 
 int Planner::roll(int k)
 {
@@ -816,7 +791,7 @@ int Planner::roll(int k)
     return 0;
 }
 
-int Planner::handle_joystick(int code, const Eigen::MatrixXd& q)
+int Planner::handle_joystick(int code, const MatrixN& q)
 {
     /* Handle the joystick code to trigger events (change of gait for instance)
   
@@ -852,4 +827,15 @@ int Planner::handle_joystick(int code, const Eigen::MatrixXd& q)
     }
 
     return 0;
+}
+
+Matrix3N Planner::vectorToMatrix(std::vector<Vector3> const& vector)
+{
+    Matrix3N M;
+    for (int i = 0; i < vector.size(); i++)
+    {
+        M.conservativeResize(M.rows(), M.cols() + 1);
+        M.col(M.cols() - 1) = vector[i];
+    }
+    return M;
 }

@@ -1,4 +1,4 @@
-#include "quadruped-reactive-walking/FootTrajectoryGenerator.h"
+#include "qrw/FootTrajectoryGenerator.h"
 
 FootTrajectoryGenerator::FootTrajectoryGenerator(double maxHeightIn, double lockTimeIn, Vector3 targetPosition)
     : maxHeight_(maxHeightIn)

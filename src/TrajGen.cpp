@@ -1,4 +1,4 @@
-#include "quadruped-reactive-walking/TrajGen.hpp"
+#include "qrw/TrajGen.hpp"
 
 // Trajectory generator functions (output reference pos, vel and acc of feet in swing phase)
 
@@ -12,13 +12,13 @@ TrajGen::TrajGen(double const maxHeightIn, double const lockTimeIn, Vector3 cons
 }
 
 
-Vector11 TrajGen::get_next_foot(Vector3 const& position,
-                                Vector3 const& velocity,
-                                Vector3 const& acceleration,
-                                Vector3 const& targetFootstep, 
-                                double t, 
-                                double d,
-                                double dt)
+void TrajGen::updateFootPosition(Vector3 const& position,
+                                 Vector3 const& velocity,
+                                 Vector3 const& acceleration,
+                                 Vector3 const& targetFootstep,
+                                 double const t,
+                                 double const d,
+                                 double const dt)
 {
     double ddx0 = acceleration(0);
     double ddy0 = acceleration(1);
@@ -57,37 +57,26 @@ Vector11 TrajGen::get_next_foot(Vector3 const& position,
 
     // Get the next point
     double ev = t + dt;
-    double evz = t + dt;
 
-    Vector11 result = Vector11::Zero();
-
-    result(6) = Az[3] * std::pow(evz, 3) + Az[2] * std::pow(evz, 4) + Az[1] * std::pow(evz, 5) + Az[0] * std::pow(evz, 6);                     // pos Z
-    result(7) = 3 * Az[3] * std::pow(evz, 2) + 4 * Az[2] * std::pow(evz, 3) + 5 * Az[1] * std::pow(evz, 4) + 6 * Az[0] * std::pow(evz, 5);     // vel Z
-    result(8) = 2 * 3 * Az[3] * evz + 3 * 4 * Az[2] * std::pow(evz, 2) + 4 * 5 * Az[1] * std::pow(evz, 3) + 5 * 6 * Az[0] * std::pow(evz, 4);  // acc Z
-    result(9) = targetFootstep_[0];                                                                                                            // current goal x
-    result(10) = targetFootstep_[1];                                                                                                           // current goal y
-
-    if (t < 0.0 || t > d)
-    {  // Just vertical motion
-        result(0) = x0;
-        result(1) = 0.0;
-        result(2) = 0.0;
-        result(3) = y0;
-        result(4) = 0.0;
-        result(5) = 0.0;
+    if (t < 0.0 || t > d)  // Just vertical motion
+    {
+        position_(0) = x0;
+        position_(1) = y0;
+        velocity_(0) = 0.0;
+        velocity_(1) = 0.0;
+        acceleration_(0) = 0.0;
+        acceleration_(1) = 0.0;
     }
     else
     {
-        // pos, vel, acc X
-        result(0) = Ax[5] + Ax[4] * ev + Ax[3] * std::pow(ev, 2) + Ax[2] * std::pow(ev, 3) + Ax[1] * std::pow(ev, 4) + Ax[0] * std::pow(ev, 5);
-        result(1) = Ax[4] + 2 * Ax[3] * ev + 3 * Ax[2] * std::pow(ev, 2) + 4 * Ax[1] * std::pow(ev, 3) + 5 * Ax[0] * std::pow(ev, 4);
-        result(2) = 2 * Ax[3] + 3 * 2 * Ax[2] * ev + 4 * 3 * Ax[1] * std::pow(ev, 2) + 5 * 4 * Ax[0] * std::pow(ev, 3);
-
-        // pos, vel, acc Y
-        result(3) = Ay[5] + Ay[4] * ev + Ay[3] * std::pow(ev, 2) + Ay[2] * std::pow(ev, 3) + Ay[1] * std::pow(ev, 4) + Ay[0] * std::pow(ev, 5);
-        result(4) = Ay[4] + 2 * Ay[3] * ev + 3 * Ay[2] * std::pow(ev, 2) + 4 * Ay[1] * std::pow(ev, 3) + 5 * Ay[0] * std::pow(ev, 4);
-        result(5) = 2 * Ay[3] + 3 * 2 * Ay[2] * ev + 4 * 3 * Ay[1] * std::pow(ev, 2) + 5 * 4 * Ay[0] * std::pow(ev, 3);
+        position_(0) = Ax[5] + Ax[4] * ev + Ax[3] * std::pow(ev, 2) + Ax[2] * std::pow(ev, 3) + Ax[1] * std::pow(ev, 4) + Ax[0] * std::pow(ev, 5);
+        position_(1) = Ay[5] + Ay[4] * ev + Ay[3] * std::pow(ev, 2) + Ay[2] * std::pow(ev, 3) + Ay[1] * std::pow(ev, 4) + Ay[0] * std::pow(ev, 5);
+        velocity_(0) = Ax[4] + 2 * Ax[3] * ev + 3 * Ax[2] * std::pow(ev, 2) + 4 * Ax[1] * std::pow(ev, 3) + 5 * Ax[0] * std::pow(ev, 4);
+        velocity_(1) = Ay[4] + 2 * Ay[3] * ev + 3 * Ay[2] * std::pow(ev, 2) + 4 * Ay[1] * std::pow(ev, 3) + 5 * Ay[0] * std::pow(ev, 4);
+        acceleration_(0) = 2 * Ax[3] + 3 * 2 * Ax[2] * ev + 4 * 3 * Ax[1] * std::pow(ev, 2) + 5 * 4 * Ax[0] * std::pow(ev, 3);
+        acceleration_(1) = 2 * Ay[3] + 3 * 2 * Ay[2] * ev + 4 * 3 * Ay[1] * std::pow(ev, 2) + 5 * 4 * Ay[0] * std::pow(ev, 3);
     }
-
-    return result;
+    velocity_(2) = 3 * Az[3] * std::pow(ev, 2) + 4 * Az[2] * std::pow(ev, 3) + 5 * Az[1] * std::pow(ev, 4) + 6 * Az[0] * std::pow(ev, 5);
+    acceleration_(2) = 2 * 3 * Az[3] * ev + 3 * 4 * Az[2] * std::pow(ev, 2) + 4 * 5 * Az[1] * std::pow(ev, 3) + 5 * 6 * Az[0] * std::pow(ev, 4);
+    position_(2) = Az[3] * std::pow(ev, 3) + Az[2] * std::pow(ev, 4) + Az[1] * std::pow(ev, 5) + Az[0] * std::pow(ev, 6);
 }
