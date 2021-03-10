@@ -16,26 +16,22 @@ Planner::Planner()
     , feet()
     , t0s()
     , t_swing({0.0, 0.0, 0.0, 0.0})
-    , fsteps(MatrixN::Zero(N0_gait, 13))
     , shoulders(Matrix34::Zero())
+    , currentFootstep_(Matrix34::Zero())
+    , nextFootstep_(Matrix34::Zero())
+    , footsteps_()
     , q_static(Vector19::Zero())
     , RPY_static(Vector3::Zero())
-    , o_feet_contact(Vector12::Zero())
-    , next_footstep(Matrix34::Zero())
-    , R(Matrix3::Zero())
-    , R_1(Matrix3::Zero())
-    , R_2(Matrix3::Zero())
+    , Rz(Matrix3::Zero())
     , dt_cum(VectorN::Zero(N0_gait))
-    , angle(VectorN::Zero(N0_gait))
+    , yaws(VectorN::Zero(N0_gait))
     , dx(VectorN::Zero(N0_gait))
     , dy(VectorN::Zero(N0_gait))
     , q_tmp(Vector3::Zero())
     , q_dxdy(Vector3::Zero())
     , RPY(Vector3::Zero())
-    , b_v_cur(Vector3::Zero())
-    , b_v_ref(Vector6::Zero())
-    , cross(Vector3::Zero())
-    , vref_in(Vector6::Zero())
+    , b_v(Vector3::Zero())
+    , b_vref(Vector6::Zero())
     , gait_()
     , xref()
     , maxHeight_(0.05)
@@ -47,18 +43,15 @@ Planner::Planner()
     , nextFootAcceleration_()
 {
     shoulders << 0.1946, 0.1946, -0.1946, -0.1946, 0.14695, -0.14695, 0.14695, -0.14695, 0.0, 0.0, 0.0, 0.0;
+    currentFootstep_ = shoulders;
+    footsteps_.fill(Matrix34::Zero());
 
-    // By default contacts are at the vertical of shoulders
-    Eigen::Map<Vector12> v1(shoulders.data(), shoulders.size());
-    o_feet_contact << v1;
-
-    R(2, 2) = 1.0;
-    R_1(2, 2) = 1.0;
+    Rz(2, 2) = 1.0;
 }
 
 
 Planner::Planner(double dt_in, double dt_tsid_in, double T_gait_in, double T_mpc_in, int k_mpc_in, bool on_solo8_in,
-                 double h_ref_in, const MatrixN& fsteps_in)
+                 double h_ref_in, MatrixN const& intialFootsteps)
     : Planner()
 {
     // Parameters from the main controller
@@ -76,17 +69,17 @@ Planner::Planner(double dt_in, double dt_tsid_in, double T_gait_in, double T_mpc
     // Initialize xref matrix
     xref = Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic>::Zero(12, 1 + n_steps);
 
-    gait_.initialize(dt, T_gait, T_mpc, fsteps);
+    gait_.initialize(dt, T_gait, T_mpc);
 
     // One foot trajectory generator per leg
     for (int i = 0; i < 4; i++)
     {
-        nextFootPosition_.push_back(fsteps_in.col(i));
-        nextFootVelocity_.push_back(Vector3::Zero());
-        nextFootAcceleration_.push_back(Vector3::Zero());
+        nextFootPosition_[i] = intialFootsteps.col(i);
+        nextFootVelocity_[i] = Vector3::Zero();
+        nextFootAcceleration_[i] = Vector3::Zero();
 
-        targetFootstep_.push_back({shoulders(0, i), shoulders(1, i), 0.0});
-        trajGens_.push_back(FootTrajectoryGenerator(maxHeight_, lockTime_, targetFootstep_[i]));
+        targetFootstep_[i] << shoulders(0, i), shoulders(1, i), 0.0;
+        trajGens_[i].initialize(maxHeight_, lockTime_, targetFootstep_[i]);
     }
 }
 
@@ -94,7 +87,6 @@ Planner::Planner(double dt_in, double dt_tsid_in, double T_gait_in, double T_mpc
 void Planner::Print()
 {
     /* To print stuff for visualisation or debug */
-
     std::cout << "------" << std::endl;
     std::cout << gait_.getPastGait().block(0, 0, 6, 5) << std::endl;
     std::cout << "-" << std::endl;
@@ -103,21 +95,9 @@ void Planner::Print()
     std::cout << gait_.getDesiredGait().block(0, 0, 6, 5) << std::endl;
 }
 
-int Planner::compute_footsteps(MatrixN q_cur, MatrixN v_cur, MatrixN v_ref)
+void Planner::compute_footsteps(VectorN const& q, Vector6 const& v, Vector6 const& vref)
 {
-    /* Compute a X by 13 matrix containing the remaining number of steps of each phase of the gait (first column)
-  and the [x, y, z]^T desired position of each foot for each phase of the gait (12 other columns).
-  For feet currently touching the ground the desired position is where they currently are.
-
-  Args:
-    q_cur (7x1 array): current position vector of the flying base in world frame (linear and angular stacked)
-    v_cur (6x1 array): current velocity vector of the flying base in world frame (linear and angular stacked)
-    v_ref (6x1 array): desired velocity vector of the flying base in world frame (linear and angular stacked)
-  */
-
-    fsteps = Eigen::Matrix<double, N0_gait, 13>::Zero();
-    fsteps.col(0) = gait_.getCurrentGait().col(0);
-
+    footsteps_.fill(Matrix34::Zero());
     MatrixN gait = gait_.getCurrentGait();
 
     // Set current position of feet for feet in stance phase
@@ -125,45 +105,42 @@ int Planner::compute_footsteps(MatrixN q_cur, MatrixN v_cur, MatrixN v_ref)
     {
         if (gait(0, 1 + j) == 1.0)
         {
-            fsteps.block(0, 1 + 3 * j, 1, 3) = o_feet_contact.segment<3>(3 * j);
+            footsteps_[0].col(j) = currentFootstep_.col(j);
         }
     }
 
     // Cumulative time by adding the terms in the first column (remaining number of timesteps)
-    // Get future yaw angle compared to current position
-    dt_cum(0, 0) = gait(0, 0) * dt;
-    angle(0, 0) = v_ref(5, 0) * dt_cum(0, 0) + RPY(2, 0);
+    // Get future yaw yaws compared to current position
+    dt_cum(0) = gait(0, 0) * dt;
+    yaws(0) = vref(5) * dt_cum(0) + RPY(2);
     for (int j = 1; j < N0_gait; j++)
     {
-        dt_cum(j, 0) = dt_cum(j - 1, 0) + gait(j, 0) * dt;
-        angle(j, 0) = v_ref(5, 0) * dt_cum(j, 0) + RPY(2, 0);
+        dt_cum(j) = dt_cum(j - 1) + gait(j) * dt;
+        yaws(j) = vref(5) * dt_cum(j) + RPY(2);
     }
 
     // Displacement following the reference velocity compared to current position
-    if (v_ref(5, 0) != 0)
+    if (vref(5, 0) != 0)
     {
         for (int j = 0; j < N0_gait; j++)
         {
-            dx(j, 0) = (v_cur(0, 0) * std::sin(v_ref(5, 0) * dt_cum(j, 0)) + v_cur(1, 0) * (std::cos(v_ref(5, 0) * dt_cum(j, 0)) - 1.0)) / v_ref(5, 0);
-            dy(j, 0) = (v_cur(1, 0) * std::sin(v_ref(5, 0) * dt_cum(j, 0)) - v_cur(0, 0) * (std::cos(v_ref(5, 0) * dt_cum(j, 0)) - 1.0)) / v_ref(5, 0);
+            dx(j) = (v(0) * std::sin(vref(5) * dt_cum(j)) + v(1) * (std::cos(vref(5) * dt_cum(j)) - 1.0)) / vref(5);
+            dy(j) = (v(1) * std::sin(vref(5) * dt_cum(j)) - v(0) * (std::cos(vref(5) * dt_cum(j)) - 1.0)) / vref(5);
         }
     }
     else
     {
         for (int j = 0; j < N0_gait; j++)
         {
-            dx(j, 0) = v_cur(0, 0) * dt_cum(j, 0);
-            dy(j, 0) = v_cur(1, 0) * dt_cum(j, 0);
+            dx(j) = v(0) * dt_cum(j);
+            dy(j) = v(1) * dt_cum(j);
         }
     }
 
     // Get current and reference velocities in base frame (rotated yaw)
-    double c = std::cos(RPY(2, 0));
-    double s = std::sin(RPY(2, 0));
-    R_1.block(0, 0, 2, 2) << c, s, -s, c;  // already transposed here
-    b_v_cur = R_1 * v_cur.block(0, 0, 3, 1);
-    b_v_ref.block(0, 0, 3, 1) = R_1 * v_ref.block(0, 0, 3, 1);
-    b_v_ref.block(3, 0, 3, 1) = R_1 * v_ref.block(3, 0, 3, 1);
+    b_v = Rz * v.head(3);
+    b_vref.head(3) = Rz * vref.head(3);
+    b_vref.tail(3) = Rz * vref.tail(3);
 
     // Update the footstep matrix depending on the different phases of the gait (swing & stance)
     int i = 1;
@@ -174,12 +151,13 @@ int Planner::compute_footsteps(MatrixN q_cur, MatrixN v_cur, MatrixN v_ref)
         {
             if (gait(i - 1, 1 + j) * gait(i, 1 + j) > 0)
             {
-                fsteps.block(i, 1 + 3 * j, 1, 3) = fsteps.block(i - 1, 1 + 3 * j, 1, 3);
+                footsteps_[i].col(j) = footsteps_[i - 1].col(j);
             }
         }
 
         // Current position without height
-        q_tmp << q_cur(0, 0), q_cur(1, 0), 0.0;
+        Vector3 q_tmp = q.head(3);
+        q_tmp(2) = 0.0;
 
         // Feet that were in swing phase and are now in stance phase need to be updated
         for (int j = 0; j < 4; j++)
@@ -193,122 +171,101 @@ int Planner::compute_footsteps(MatrixN q_cur, MatrixN v_cur, MatrixN v_ref)
                 compute_next_footstep(i, j);
 
                 // Get desired position of footstep compared to current position
-                double c = std::cos(angle(i - 1, 0));
-                double s = std::sin(angle(i - 1, 0));
-                R.block(0, 0, 2, 2) << c, -s, s, c;
+                double c = std::cos(yaws(i - 1));
+                double s = std::sin(yaws(i - 1));
+                Rz.topLeftCorner<2, 2>() << c, -s, s, c;
 
-                fsteps.block(i, 1 + 3 * j, 1, 3) = (R * next_footstep.col(j) + q_tmp + q_dxdy).transpose();
+                footsteps_[i].col(j) = (Rz * nextFootstep_.col(j) + q_tmp + q_dxdy).transpose();
             }
         }
-
         i++;
     }
-
-    return 0;
 }
 
-int Planner::compute_next_footstep(int i, int j)
+Matrix34 Planner::compute_next_footstep(int i, int j)
 {
-    /* Compute the target location on the ground of a given foot for an upcoming stance phase
-
-  Args:
-    i (int): considered phase (row of the gait matrix)
-    j (int): considered foot (col of the gait matrix)
-  */
+    nextFootstep_ = Matrix34::Zero();
 
     double t_stance = gait_.get_stance_swing_duration(i, j, 1.0);  // 1.0 for stance phase
 
     // Add symmetry term
-    next_footstep.col(j) = t_stance * 0.5 * b_v_cur;
+    nextFootstep_.col(j) = t_stance * 0.5 * b_v;
 
     // Add feedback term
-    next_footstep.col(j) += k_feedback * (b_v_cur - b_v_ref.block(0, 0, 3, 1));
+    nextFootstep_.col(j) += k_feedback * (b_v - b_vref.head(3));
 
     // Add centrifugal term
-    cross << b_v_cur(1, 0) * b_v_ref(5, 0) - b_v_cur(2, 0) * b_v_ref(4, 0),
-        b_v_cur(2, 0) * b_v_ref(3, 0) - b_v_cur(0, 0) * b_v_ref(5, 0), 0.0;
-    next_footstep.col(j) += 0.5 * std::sqrt(h_ref / g) * cross;
+    Vector3 cross;
+    cross << b_v(1) * b_vref(5) - b_v(2) * b_vref(4), b_v(2) * b_vref(3) - b_v(0) * b_vref(5), 0.0;
+    nextFootstep_.col(j) += 0.5 * std::sqrt(h_ref / g) * cross;
 
     // Legs have a limited length so the deviation has to be limited
-    if (next_footstep(0, j) > L)
+    if (nextFootstep_(0, j) > L)
     {
-        next_footstep(0, j) = L;
+        nextFootstep_(0, j) = L;
     }
-    else if (next_footstep(0, j) < -L)
+    else if (nextFootstep_(0, j) < -L)
     {
-        next_footstep(0, j) = -L;
+        nextFootstep_(0, j) = -L;
     }
 
-    if (next_footstep(1, j) > L)
+    if (nextFootstep_(1, j) > L)
     {
-        next_footstep(1, j) = L;
+        nextFootstep_(1, j) = L;
     }
-    else if (next_footstep(1, j) < -L)
+    else if (nextFootstep_(1, j) < -L)
     {
-        next_footstep(1, j) = -L;
+        nextFootstep_(1, j) = -L;
     }
 
     // Add shoulders
-    next_footstep.col(j) += shoulders.col(j);
+    nextFootstep_.col(j) += shoulders.col(j);
 
     // Remove Z component (working on flat ground)
-    next_footstep.row(2) = Eigen::Matrix<double, 1, 4>::Zero();
+    nextFootstep_.row(2) = Vector4::Zero().transpose();
 
-    return 0;
+    return nextFootstep_;
 }
 
-int Planner::getRefStates(MatrixN q, MatrixN v, MatrixN vref, double z_average)
+int Planner::getRefStates(VectorN const& q, Vector6 const& v, Vector6 const& vref, double z_average)
 {
-    /* Compute the reference trajectory of the CoM for each time step of the
-  predition horizon. The ouput is a matrix of size 12 by (N+1) with N the number
-  of time steps in the gait cycle (T_gait/dt) and 12 the position, orientation,
-  linear velocity and angular velocity vertically stacked. The first column contains
-  the current state while the remaining N columns contains the desired future states.
-
-  Args:
-    q (7x1 array): current position vector of the flying base in world frame (linear and angular stacked)
-    v (6x1 array): current velocity vector of the flying base in world frame (linear and angular stacked)
-    vref (6x1 array): desired velocity vector of the flying base in world frame (linear and angular stacked)
-    z_average (double): average height of feet currently in stance phase
-  */
-
     VectorN dt_vector = VectorN::LinSpaced(n_steps, dt, T_mpc);
 
     // Update yaw and yaw velocity
-    xref.block(5, 1, 1, n_steps) = vref(5, 0) * dt_vector.transpose();
+    xref.block(5, 1, 1, n_steps) = vref(5) * dt_vector.transpose();
     for (int i = 0; i < n_steps; i++)
     {
-        xref(11, 1 + i) = vref(5, 0);
+        xref(11, 1 + i) = vref(5);
     }
 
     // Update x and y velocities taking into account the rotation of the base over the prediction horizon
     for (int i = 0; i < n_steps; i++)
     {
-        xref(6, 1 + i) = vref(0, 0) * std::cos(xref(5, 1 + i)) - vref(1, 0) * std::sin(xref(5, 1 + i));
-        xref(7, 1 + i) = vref(0, 0) * std::sin(xref(5, 1 + i)) + vref(1, 0) * std::cos(xref(5, 1 + i));
+        xref(6, 1 + i) = vref(0) * std::cos(xref(5, 1 + i)) - vref(1) * std::sin(xref(5, 1 + i));
+        xref(7, 1 + i) = vref(0) * std::sin(xref(5, 1 + i)) + vref(1) * std::cos(xref(5, 1 + i));
     }
 
     // Update x and y depending on x and y velocities (cumulative sum)
-    if (vref(5, 0) != 0)
+    if (vref(5) != 0)
     {
         for (int i = 0; i < n_steps; i++)
         {
-            xref(0, 1 + i) = (vref(0, 0) * std::sin(vref(5, 0) * dt_vector(i)) + vref(1, 0) * (std::cos(vref(5, 0) * dt_vector(i)) - 1.0)) / vref(5, 0);
-            xref(1, 1 + i) = (vref(1, 0) * std::sin(vref(5, 0) * dt_vector(i)) - vref(0, 0) * (std::cos(vref(5, 0) * dt_vector(i)) - 1.0)) / vref(5, 0);
+            xref(0, 1 + i) = (vref(0) * std::sin(vref(5) * dt_vector(i)) + vref(1) * (std::cos(vref(5) * dt_vector(i)) - 1.0)) / vref(5);
+            xref(1, 1 + i) = (vref(1) * std::sin(vref(5) * dt_vector(i)) - vref(0) * (std::cos(vref(5) * dt_vector(i)) - 1.0)) / vref(5);
         }
     }
     else
     {
         for (int i = 0; i < n_steps; i++)
         {
-            xref(0, 1 + i) = vref(0, 0) * dt_vector(i);
-            xref(1, 1 + i) = vref(1, 0) * dt_vector(i);
+            xref(0, 1 + i) = vref(0) * dt_vector(i);
+            xref(1, 1 + i) = vref(1) * dt_vector(i);
         }
     }
 
     for (int i = 0; i < n_steps; i++)
     {
-        xref(5, 1 + i) += RPY(2, 0);
+        xref(5, 1 + i) += RPY(2);
         xref(2, 1 + i) = h_ref + z_average;
         xref(8, 1 + i) = 0.0;
     }
@@ -318,10 +275,10 @@ int Planner::getRefStates(MatrixN q, MatrixN v, MatrixN vref, double z_average)
     // No need to update pitch and pitch velocity as the reference is always 0 for those
 
     // Update the current state
-    xref.block(0, 0, 3, 1) = q.block(0, 0, 3, 1);
+    xref.block(0, 0, 3, 1) = q.head(3);
     xref.block(3, 0, 3, 1) = RPY;
-    xref.block(6, 0, 3, 1) = v.block(0, 0, 3, 1);
-    xref.block(9, 0, 3, 1) = v.block(3, 0, 3, 1);
+    xref.block(6, 0, 3, 1) = v.head(3);
+    xref.block(9, 0, 3, 1) = v.tail(3);
 
     for (int i = 0; i < n_steps; i++)
     {
@@ -331,9 +288,9 @@ int Planner::getRefStates(MatrixN q, MatrixN v, MatrixN vref, double z_average)
 
     if (is_static)
     {
-        Vector3 RPY;
         Eigen::Quaterniond quat(q_static(6, 0), q_static(3, 0), q_static(4, 0), q_static(5, 0));  // w, x, y, z
         RPY << pinocchio::rpy::matrixToRpy(quat.toRotationMatrix());
+
         for (int i = 0; i < n_steps; i++)
         {
             xref.block(0, 1 + i, 3, 1) = q_static.block(0, 0, 3, 1);
@@ -348,26 +305,17 @@ void Planner::update_target_footsteps()
 {
     for (int i = 0; i < 4; i++)
     {
-        // Index of the first non-empty line
         int index = 0;
-        while (fsteps(index, 1 + 3 * i) == 0.0)
+        while (footsteps_[index](0, i) == 0.0)
         {
             index++;
         }
-        targetFootstep_[i] << fsteps(index, 1 + 3 * i), fsteps(index, 2 + 3 * i), 0.0;
+        targetFootstep_[i] << footsteps_[index](0, i), footsteps_[index](1, i), 0.0;
     }
 }
 
-int Planner::update_trajectory_generator(int k, double h_estim)
+void Planner::update_trajectory_generator(int k)
 {
-    /* Update the 3D desired position for feet in swing phase by using a 5-th order polynomial that lead them
-  to the desired position on the ground (computed by the footstep planner)
-
-  Args:
-    k (int): number of time steps since the start of the simulation
-    h_estim (double): estimated height of the base
-  */
-
     if ((k % k_mpc) == 0)
     {
         // Indexes of feet in swing phase
@@ -382,7 +330,7 @@ int Planner::update_trajectory_generator(int k, double h_estim)
         // If no foot in swing phase
         if (feet.size() == 0)
         {
-            return 0;
+            return;
         }
 
         // For each foot in swing phase get remaining duration of the swing phase
@@ -410,7 +358,7 @@ int Planner::update_trajectory_generator(int k, double h_estim)
         // If no foot in swing phase
         if (feet.size() == 0)
         {
-            return 0;
+            return;
         }
 
         // Increment of one time step for feet in swing phase
@@ -446,60 +394,77 @@ int Planner::update_trajectory_generator(int k, double h_estim)
         nextFootAcceleration_[i_foot] = trajGens_[i_foot].getFootAcceleration();
     }
 
-    return 0;
+    return;
 }
 
-int Planner::run_planner(int k, const MatrixN& q, const MatrixN& v, const MatrixN& b_vref_in,
-                         double h_estim, double z_average, int joystick_code)
+void Planner::run_planner(int const k,
+                          VectorN const& q,
+                          Vector6 const& v,
+                          Vector6 const& b_vref,
+                          double const h_estim,
+                          double const z_average,
+                          int const joystick_code)
 {
     // Get the reference velocity in world frame (given in base frame)
-    Eigen::Quaterniond quat(q(6, 0), q(3, 0), q(4, 0), q(5, 0));  // w, x, y, z
+    Eigen::Quaterniond quat(q(6), q(3), q(4), q(5));  // w, x, y, z
     RPY << pinocchio::rpy::matrixToRpy(quat.toRotationMatrix());
-    double c = std::cos(RPY(2, 0));
-    double s = std::sin(RPY(2, 0));
-    R_2.block(0, 0, 2, 2) << c, -s, s, c;
-    R_2(2, 2) = 1.0;
-    vref_in.block(0, 0, 3, 1) = R_2 * b_vref_in.block(0, 0, 3, 1);
-    vref_in.block(3, 0, 3, 1) = b_vref_in.block(3, 0, 3, 1);
+
+    double c = std::cos(RPY(2));
+    double s = std::sin(RPY(2));
+    Rz.topLeftCorner<2, 2>() << c, -s, s, c;
+
+    Vector6 vref = b_vref;
+    vref.head(3) = Rz * b_vref.head(3);
 
     // Handle joystick events
-    is_static = gait_.handle_joystick(joystick_code, q, q_static, fsteps);
+    is_static = gait_.handle_joystick(joystick_code, q, q_static);
 
     // Move one step further in the gait
     if (k % k_mpc == 0)
     {
-        gait_.roll(k, fsteps, o_feet_contact);
+        gait_.roll(k, footsteps_[1], currentFootstep_);
     }
 
     // Compute the desired location of footsteps over the prediction horizon
-    compute_footsteps(q, v, vref_in);
+    compute_footsteps(q, v, vref);
 
     // Get the reference trajectory for the MPC
-    getRefStates(q, v, vref_in, z_average);
+    getRefStates(q, v, vref, z_average);
 
     // Update desired location of footsteps on the ground
     update_target_footsteps();
 
     // Update trajectory generator (3D pos, vel, acc)
-    update_trajectory_generator(k, h_estim);
-
-    return 0;
+    update_trajectory_generator(k);
 }
 
 MatrixN Planner::get_xref() { return xref; }
-MatrixN Planner::get_fsteps() { return fsteps; }
+MatrixN Planner::get_fsteps() { return vectorToMatrix(footsteps_); }
 MatrixN Planner::get_gait() { return gait_.getCurrentGait(); }
 Matrix3N Planner::get_goals() { return vectorToMatrix(nextFootPosition_); }
 Matrix3N Planner::get_vgoals() { return vectorToMatrix(nextFootVelocity_); }
 Matrix3N Planner::get_agoals() { return vectorToMatrix(nextFootAcceleration_); }
 
-Matrix3N Planner::vectorToMatrix(std::vector<Vector3> const& vector)
+Matrix34 Planner::vectorToMatrix(std::array<Vector3, 4> const& array)
 {
-    Matrix3N M;
-    for (int i = 0; i < vector.size(); i++)
+    Matrix34 M;
+    for (int i = 0; i < 4; i++)
     {
-        M.conservativeResize(M.rows(), M.cols() + 1);
-        M.col(M.cols() - 1) = vector[i];
+        M.col(i) = array[i];
+    }
+    return M;
+}
+
+MatrixN Planner::vectorToMatrix(std::array<Matrix34, N0_gait> const& array)
+{
+    MatrixN M = MatrixN::Zero(N0_gait, 13);
+    M.col(0) = gait_.getCurrentGait().col(0);
+    for (int i = 0; i < N0_gait; i++)
+    {
+        for (int j = 0; j < 4; j++)
+        {
+            M.row(i).segment<3>(1 + 3 * j) = array[i].col(j);
+        }
     }
     return M;
 }

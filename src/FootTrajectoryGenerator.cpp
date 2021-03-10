@@ -2,13 +2,20 @@
 
 // Trajectory generator functions (output reference pos, vel and acc of feet in swing phase)
 
-FootTrajectoryGenerator::FootTrajectoryGenerator(double const maxHeightIn, double const lockTimeIn, Vector3 const& targetFootstepIn)
-    : maxHeight_(maxHeightIn)
-    , lockTime_(lockTimeIn)
-    , targetFootstep_(targetFootstepIn)
+FootTrajectoryGenerator::FootTrajectoryGenerator()
+    : maxHeight_(0.0)
+    , lockTime_(0.0)
+    , targetFootstep_()
     , Ax(Vector6::Zero())
     , Ay(Vector6::Zero())
 {
+}
+
+void FootTrajectoryGenerator::initialize(double const maxHeightIn, double const lockTimeIn, Vector3 const& targetFootstepIn)
+{
+    maxHeight_ = maxHeightIn;
+    lockTime_ = lockTimeIn;
+    targetFootstep_ = targetFootstepIn;
 }
 
 
