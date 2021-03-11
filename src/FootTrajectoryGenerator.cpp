@@ -8,31 +8,35 @@ FootTrajectoryGenerator::FootTrajectoryGenerator()
     , targetFootstep_()
     , Ax(Vector6::Zero())
     , Ay(Vector6::Zero())
+    , position_(Vector3::Zero())
+    , velocity_(Vector3::Zero())
+    , acceleration_(Vector3::Zero())
 {
 }
 
-void FootTrajectoryGenerator::initialize(double const maxHeightIn, double const lockTimeIn, Vector3 const& targetFootstepIn)
+void FootTrajectoryGenerator::initialize(double const maxHeightIn,
+                                         double const lockTimeIn,
+                                         Vector3 const& targetFootstepIn,
+                                         Vector3 const& initialFootPosition)
 {
     maxHeight_ = maxHeightIn;
     lockTime_ = lockTimeIn;
     targetFootstep_ = targetFootstepIn;
+    position_ = initialFootPosition;
 }
 
 
-void FootTrajectoryGenerator::updateFootPosition(Vector3 const& position,
-                                 Vector3 const& velocity,
-                                 Vector3 const& acceleration,
-                                 Vector3 const& targetFootstep,
-                                 double const t,
-                                 double const d,
-                                 double const dt)
+void FootTrajectoryGenerator::updateFootPosition(Vector3 const& targetFootstep,
+                                                 double const t,
+                                                 double const d,
+                                                 double const dt)
 {
-    double ddx0 = acceleration(0);
-    double ddy0 = acceleration(1);
-    double dx0 = velocity(0);
-    double dy0 = velocity(1);
-    double x0 = position(0);
-    double y0 = position(1);
+    double ddx0 = acceleration_(0);
+    double ddy0 = acceleration_(1);
+    double dx0 = velocity_(0);
+    double dy0 = velocity_(1);
+    double x0 = position_(0);
+    double y0 = position_(1);
 
     if (t < d - lockTime_)
     {

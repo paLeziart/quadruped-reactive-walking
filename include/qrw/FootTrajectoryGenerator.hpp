@@ -38,7 +38,10 @@ public:
     /// \param[in] target desired target location at the end of the swing phase
     ///
     ////////////////////////////////////////////////////////////////////////////////////////////////
-    void initialize(double const maxHeightIn, double const lockTimeIn, Vector3 const& targetFootstepIn);
+    void initialize(double const maxHeightIn,
+                    double const lockTimeIn,
+                    Vector3 const& targetFootstepIn,
+                    Vector3 const& initialFootPosition);
 
     ////////////////////////////////////////////////////////////////////////////////////////////////
     ///
@@ -53,10 +56,7 @@ public:
     /// \param[in] dt time step of the control
     ///
     ////////////////////////////////////////////////////////////////////////////////////////////////
-    void updateFootPosition(Vector3 const& position,
-                            Vector3 const& velocity,
-                            Vector3 const& acceleration,
-                            Vector3 const& targetFootstep,
+    void updateFootPosition(Vector3 const& targetFootstep,
                             double const t,
                             double const d,
                             double const dt);

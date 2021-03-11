@@ -77,9 +77,8 @@ Planner::Planner(double dt_in, double dt_tsid_in, double T_gait_in, double T_mpc
         nextFootPosition_[i] = intialFootsteps.col(i);
         nextFootVelocity_[i] = Vector3::Zero();
         nextFootAcceleration_[i] = Vector3::Zero();
-
         targetFootstep_[i] << shoulders(0, i), shoulders(1, i), 0.0;
-        trajGens_[i].initialize(maxHeight_, lockTime_, targetFootstep_[i]);
+        trajGens_[i].initialize(maxHeight_, lockTime_, targetFootstep_[i], nextFootPosition_[i]);
     }
 }
 
@@ -381,10 +380,7 @@ void Planner::update_trajectory_generator(int k)
     {
         int i_foot = feet[i];
 
-        trajGens_[i_foot].updateFootPosition(nextFootPosition_[i_foot],
-                                             nextFootVelocity_[i_foot],
-                                             nextFootAcceleration_[i_foot],
-                                             targetFootstep_[i_foot],
+        trajGens_[i_foot].updateFootPosition(targetFootstep_[i_foot],
                                              t0s[i],
                                              t_swing[i_foot],
                                              dt_tsid);
