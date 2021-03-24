@@ -8,6 +8,8 @@ Gait::Gait()
     , T_gait_(0.0)
     , T_mpc_(0.0)
     , remainingTime_(0.0)
+    , is_static_(true)
+    , q_static_(VectorN::Zero(19))
 {
     // Empty
 }
@@ -178,7 +180,7 @@ int Gait::create_gait_f()
     return 0;
 }
 
-double Gait::get_stance_swing_duration(int i, int j, double value)
+double Gait::getPhaseDuration(int i, int j, double value)
 {
     double t_phase = currentGait_(i, 0);
     int a = i;
@@ -304,9 +306,9 @@ void Gait::roll(int k, Matrix34 const& footstep, Matrix34& currentFootstep)
     }
 }
 
-bool Gait::handle_joystick(int code, Vector7 const& q, Vector19& q_static)
+bool Gait::changeGait(int const code, VectorN const& q)
 {
-    bool is_static = false;
+    is_static_ = false;
     if (code == 1)
     {
         create_pacing();
@@ -322,8 +324,8 @@ bool Gait::handle_joystick(int code, Vector7 const& q, Vector19& q_static)
     else if (code == 4)
     {
         create_static();
-        q_static.head(7) = q;
-        is_static = true;
+        q_static_.head(7) = q.head(7);
+        is_static_ = true;
     }
-    return is_static;
+    return is_static_;
 }

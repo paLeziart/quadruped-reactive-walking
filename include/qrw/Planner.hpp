@@ -48,13 +48,19 @@ public:
     /// \param[in] T_gait_in
     /// \param[in] T_mpc_in
     /// \param[in] k_mpc_in
-    /// \param[in] on_solo8_in
     /// \param[in] h_ref_in
     /// \param[in] fsteps_in
     ///
     ////////////////////////////////////////////////////////////////////////////////////////////////
-    Planner(double dt_in, double dt_tsid_in, double T_gait_in, double T_mpc_in, int k_mpc_in, bool on_solo8_in,
-            double h_ref_in, const MatrixN& intialFootsteps);
+    Planner(double dt_in,
+            double dt_tsid_in,
+            double T_gait_in,
+            double T_mpc_in,
+            int k_mpc_in,
+            double h_ref_in,
+            MatrixN const& intialFootsteps,
+            Matrix34 const& shouldersIn,
+            Gait& gaitIn);
 
     ////////////////////////////////////////////////////////////////////////////////////////////////
     ///
@@ -73,7 +79,7 @@ public:
     ///        For feet currently touching the ground the desired position is where they currently are.
     ///
     /// \param[in] q current position vector of the flying base in world frame(linear and angular stacked)
-    /// \param[in] v current velocity vector of the flying base in world frame(linear and angular stacked)
+    /// \param[in] v current velocity vector of sthe flying base in world frame(linear and angular stacked)
     /// \param[in] vref desired velocity vector of the flying base in world frame(linear and angular stacked)
     ///
     ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -89,7 +95,7 @@ public:
     /// \retval Matrix with the next footstep positions
     ///
     ////////////////////////////////////////////////////////////////////////////////////////////////
-    Matrix34 compute_next_footstep(int i, int j);
+    void compute_next_footstep(int i, int j);
 
     ////////////////////////////////////////////////////////////////////////////////////////////////
     ///
@@ -142,8 +148,7 @@ public:
                      Vector6 const& v,
                      Vector6 const& b_vref,
                      double const h_estim,
-                     double const z_average,
-                     int const joystick_code);
+                     double const z_average);
 
     // Accessors (to retrieve C data from Python)
     MatrixN get_xref();
@@ -164,13 +169,11 @@ private:
     double T_mpc;    // MPC period (prediction horizon)
     double h_ref;    // Reference height for the trunk
     int k_mpc;       // Number of TSID iterations for one iteration of the MPC
-    bool on_solo8;   //  Whether we are working on solo8 or not
 
     // Predefined quantities
     double k_feedback;  // Feedback gain for the feedback term of the planner
     double g;           // Value of the gravity acceleartion
     double L;           // Value of the maximum allowed deviation due to leg length
-    bool is_static;     // Flag for static gait
 
     // Number of time steps in the prediction horizon
     int n_steps;  // T_mpc / time step of the MPC
@@ -181,12 +184,11 @@ private:
     double t_swing[4];
 
     // Constant sized matrices
-    Matrix34 shoulders;         // Position of shoulders in local frame
+    Matrix34 shoulders_;         // Position of shoulders in local frame
     Matrix34 currentFootstep_;  // Feet matrix in world frame
     Matrix34 nextFootstep_;     // Feet matrix in world frame
     std::array<Matrix34, N0_gait> footsteps_;
 
-    Vector19 q_static;
     Vector3 RPY_static;
 
     Matrix3 Rz;  // Predefined matrices for compute_footstep function

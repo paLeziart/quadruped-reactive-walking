@@ -97,7 +97,7 @@ public:
     /// \param[in] value 0.0 for swing phase detection, 1.0 for stance phase detection
     ///
     ////////////////////////////////////////////////////////////////////////////////////////////////
-    double get_stance_swing_duration(int i, int j, double value);
+    double getPhaseDuration(int i, int j, double value);
 
     ////////////////////////////////////////////////////////////////////////////////////////////////
     ///
@@ -120,12 +120,14 @@ public:
     /// \param[in] q current position vector of the flying base in world frame (linear and angular stacked)
     ///
     ////////////////////////////////////////////////////////////////////////////////////////////////
-    bool handle_joystick(int code, Vector7 const& q, Vector19& q_static);
+    bool changeGait(int const code, VectorN const& q);
 
     MatrixN getPastGait() { return pastGait_; }
     MatrixN getCurrentGait() { return currentGait_; }
     MatrixN getDesiredGait() { return desiredGait_; }
     double getRemainingTime() { return remainingTime_; }
+    bool getIsStatic() { return is_static_; }
+    VectorN getQStatic() { return q_static_; }
 
 private:
     MatrixN pastGait_;     // Past gait
@@ -137,6 +139,9 @@ private:
     double T_mpc_;   // MPC period (prediction horizon)
 
     double remainingTime_;
+
+    bool is_static_;
+    VectorN q_static_;
 };
 
 #endif  // GAIT_H_INCLUDED
