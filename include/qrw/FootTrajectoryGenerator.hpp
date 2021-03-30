@@ -10,6 +10,7 @@
 #ifndef TRAJGEN_H_INCLUDED
 #define TRAJGEN_H_INCLUDED
 
+#include "qrw/Gait.hpp"
 #include "qrw/Types.h"
 
 class FootTrajectoryGenerator

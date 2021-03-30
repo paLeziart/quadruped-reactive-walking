@@ -64,6 +64,7 @@ class PyPlanner:
 
         self.xref = self.planner.get_xref()
         self.fsteps = self.planner.get_fsteps()
+        
         self.gait = self.c_gait.get_current_gait()
 
         self.goals = self.planner.get_goals()

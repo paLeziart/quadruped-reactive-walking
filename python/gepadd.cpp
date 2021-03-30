@@ -1,8 +1,8 @@
 #include "qrw/gepadd.hpp"
+#include "qrw/Gait.hpp"
 #include "qrw/InvKin.hpp"
 #include "qrw/MPC.hpp"
 #include "qrw/Planner.hpp"
-#include "qrw/Gait.hpp"
 #include "qrw/QPWBC.hpp"
 
 #include <boost/python.hpp>
@@ -38,7 +38,7 @@ struct MPCPythonVisitor : public bp::def_visitor<MPCPythonVisitor<MPC>>
 
 void exposeMPC() { MPCPythonVisitor<MPC>::expose(); }
 
-// // -------- FOOT TRAJECTORY GENERATOR --------------------------------------------------------------
+// -------- FOOT TRAJECTORY GENERATOR --------------------------------------------------------------
 
 // template <typename FootTrajectoryGenerator>
 // struct FootTrajectoryGeneratorVisitor : public bp::def_visitor<FootTrajectoryGeneratorVisitor<FootTrajectoryGenerator>>
@@ -48,10 +48,13 @@ void exposeMPC() { MPCPythonVisitor<MPC>::expose(); }
 //     {
 //         cl.def(bp::init<>(bp::arg(""), "Default constructor."))
 
-//             .def("initialize", &FootTrajectoryGenerator::initialize, bp::args("maxHeight", "lockTime", "targetFootstep", "initialFootPosition"),
+//             .def("initialize", &FootTrajectoryGenerator::initialize, bp::args("maxHeight", "lockTime", "targetFootstep", "initialFootPosition", "dt", "k", "gait"),
 //                  "Initialize Gait class.\n")
 
-//             .def("update_foot_position", &FootTrajectoryGenerator::updateFootPosition, bp::args("targetFootstep", "t", "d", "dt"),
+//             .def("update_foot_position", &FootTrajectoryGenerator::updateFootPosition, bp::args("foot_id", "targetFootstep"),
+//                  "Compute the next position, velocity and acceleration of the foot.\n")
+
+//             .def("update_foot_position", &FootTrajectoryGenerator::update, bp::args("k", "targetFootstep"),
 //                  "Compute the next position, velocity and acceleration of the foot.\n")
 
 //             .def("get_target_footstep", &FootTrajectoryGenerator::getTargetPosition, "Get the target foot position.\n")
@@ -66,7 +69,7 @@ void exposeMPC() { MPCPythonVisitor<MPC>::expose(); }
 
 //         ENABLE_SPECIFIC_MATRIX_TYPE(MatrixN);
 //     }
-//  };
+// };
 // void exposeFootTrajectoryGenerator() { FootTrajectoryGeneratorVisitor<FootTrajectoryGenerator>::expose(); }
 
 // -------- GAIT -----------------------------------------------------------------------------------
@@ -116,7 +119,8 @@ struct PlannerPythonVisitor : public bp::def_visitor<PlannerPythonVisitor<Planne
         cl.def(bp::init<>(bp::arg(""), "Default constructor."))
             .def(bp::init<double, double, double, double, int, double, const MatrixN&, const MatrixN&, Gait&>(
                 bp::args("dt_in", "dt_tsid_in", "T_gait_in", "T_mpc_in", "k_mpc_in", "h_ref_in",
-                         "fsteps_in", "shoulders positions", "gait"), "Constructor with parameters."))
+                         "fsteps_in", "shoulders positions", "gait"),
+                "Constructor with parameters."))
 
             .def("get_xref", &Planner::get_xref, "Get xref matrix.\n")
             .def("get_fsteps", &Planner::get_fsteps, "Get fsteps matrix.\n")
