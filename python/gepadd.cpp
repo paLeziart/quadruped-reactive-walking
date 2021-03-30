@@ -1,4 +1,5 @@
 #include "qrw/gepadd.hpp"
+#include "qrw/FootTrajectoryGenerator.hpp"
 #include "qrw/Gait.hpp"
 #include "qrw/InvKin.hpp"
 #include "qrw/MPC.hpp"
@@ -40,37 +41,37 @@ void exposeMPC() { MPCPythonVisitor<MPC>::expose(); }
 
 // -------- FOOT TRAJECTORY GENERATOR --------------------------------------------------------------
 
-// template <typename FootTrajectoryGenerator>
-// struct FootTrajectoryGeneratorVisitor : public bp::def_visitor<FootTrajectoryGeneratorVisitor<FootTrajectoryGenerator>>
-// {
-//     template <class PyClassFootTrajectoryGenerator>
-//     void visit(PyClassFootTrajectoryGenerator& cl) const
-//     {
-//         cl.def(bp::init<>(bp::arg(""), "Default constructor."))
+template <typename FootTrajectoryGenerator>
+struct FootTrajectoryGeneratorVisitor : public bp::def_visitor<FootTrajectoryGeneratorVisitor<FootTrajectoryGenerator>>
+{
+    template <class PyClassFootTrajectoryGenerator>
+    void visit(PyClassFootTrajectoryGenerator& cl) const
+    {
+        cl.def(bp::init<>(bp::arg(""), "Default constructor."))
+            .def(bp::init<double, double, const MatrixN&, const MatrixN&, double, int>(
+                bp::args("maxHeight", "lockTime", "targetFootstep", "initialFootPosition", "dt", "k"),
+                "Constructor with parameters."))
 
-//             .def("initialize", &FootTrajectoryGenerator::initialize, bp::args("maxHeight", "lockTime", "targetFootstep", "initialFootPosition", "dt", "k", "gait"),
-//                  "Initialize Gait class.\n")
+            .def("update_foot_position", &FootTrajectoryGenerator::updateFootPosition, bp::args("foot_id", "targetFootstep"),
+                 "Compute the next position, velocity and acceleration of the foot.\n")
 
-//             .def("update_foot_position", &FootTrajectoryGenerator::updateFootPosition, bp::args("foot_id", "targetFootstep"),
-//                  "Compute the next position, velocity and acceleration of the foot.\n")
+            .def("update", &FootTrajectoryGenerator::update, bp::args("k", "targetFootstep", "gait"),
+                 "Compute the next position, velocity and acceleration of the foot.\n")
 
-//             .def("update_foot_position", &FootTrajectoryGenerator::update, bp::args("k", "targetFootstep"),
-//                  "Compute the next position, velocity and acceleration of the foot.\n")
+            .def("get_target_footstep", &FootTrajectoryGenerator::getTargetPosition, "Get the target foot position.\n")
+            .def("get_position", &FootTrajectoryGenerator::getFootPosition, "Get computed foot position matrix.\n")
+            .def("get_velocity", &FootTrajectoryGenerator::getFootVelocity, "Get computed foot velocity matrix.\n")
+            .def("get_acceleration", &FootTrajectoryGenerator::getFootAcceleration, "Get computed foot acceleration matrix.\n");
+    }
 
-//             .def("get_target_footstep", &FootTrajectoryGenerator::getTargetPosition, "Get the target foot position.\n")
-//             .def("get_position", &FootTrajectoryGenerator::getFootPosition, "Get computed foot position matrix.\n")
-//             .def("get_velocity", &FootTrajectoryGenerator::getFootVelocity, "Get computed foot velocity matrix.\n")
-//             .def("get_acceleration", &FootTrajectoryGenerator::getFootAcceleration, "Get computed foot acceleration matrix.\n");
-//     }
+    static void expose()
+    {
+        bp::class_<FootTrajectoryGenerator>("FootTrajectoryGenerator", bp::no_init).def(FootTrajectoryGeneratorVisitor<FootTrajectoryGenerator>());
 
-//     static void expose()
-//     {
-//         bp::class_<FootTrajectoryGenerator>("FootTrajectoryGenerator", bp::no_init).def(FootTrajectoryGeneratorVisitor<FootTrajectoryGenerator>());
-
-//         ENABLE_SPECIFIC_MATRIX_TYPE(MatrixN);
-//     }
-// };
-// void exposeFootTrajectoryGenerator() { FootTrajectoryGeneratorVisitor<FootTrajectoryGenerator>::expose(); }
+        ENABLE_SPECIFIC_MATRIX_TYPE(MatrixN);
+    }
+};
+void exposeFootTrajectoryGenerator() { FootTrajectoryGeneratorVisitor<FootTrajectoryGenerator>::expose(); }
 
 // -------- GAIT -----------------------------------------------------------------------------------
 
@@ -117,19 +118,20 @@ struct PlannerPythonVisitor : public bp::def_visitor<PlannerPythonVisitor<Planne
     void visit(PyClassPlanner& cl) const
     {
         cl.def(bp::init<>(bp::arg(""), "Default constructor."))
-            .def(bp::init<double, double, double, double, int, double, const MatrixN&, const MatrixN&, Gait&>(
+            .def(bp::init<double, double, double, double, int, double, const MatrixN&, const MatrixN&>(
                 bp::args("dt_in", "dt_tsid_in", "T_gait_in", "T_mpc_in", "k_mpc_in", "h_ref_in",
-                         "fsteps_in", "shoulders positions", "gait"),
+                         "fsteps_in", "shoulders positions"),
                 "Constructor with parameters."))
 
             .def("get_xref", &Planner::get_xref, "Get xref matrix.\n")
             .def("get_fsteps", &Planner::get_fsteps, "Get fsteps matrix.\n")
+            .def("get_gait", &Planner::get_gait, "Get gait matrix.\n")
             .def("get_goals", &Planner::get_goals, "Get position goals matrix.\n")
             .def("get_vgoals", &Planner::get_vgoals, "Get velocity goals matrix.\n")
             .def("get_agoals", &Planner::get_agoals, "Get acceleration goals matrix.\n")
 
             // Run Planner from Python
-            .def("run_planner", &Planner::run_planner, bp::args("k", "q", "v", "b_vref", "h_estim", "z_average", "joystick_code"),
+            .def("run_planner", &Planner::run_planner, bp::args("k", "q", "v", "b_vref", "z_average", "joystick_code"),
                  "Run Planner from Python.\n");
     }
 
@@ -208,6 +210,7 @@ BOOST_PYTHON_MODULE(libquadruped_reactive_walking)
     exposeMPC();
     exposeGait();
     exposePlanner();
+    exposeFootTrajectoryGenerator();
     exposeInvKin();
     exposeQPWBC();
 }

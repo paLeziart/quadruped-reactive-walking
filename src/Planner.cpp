@@ -2,7 +2,6 @@
 
 Planner::Planner()
     : dt(0.0)
-    , dt_tsid(0.0)
     , T_gait(0.0)
     , T_mpc(0.0)
     , h_ref(0.0)
@@ -11,14 +10,10 @@ Planner::Planner()
     , g(9.81)
     , L(0.155)
     , n_steps(0)
-    , feet()
-    , t0s()
-    , t_swing({0.0, 0.0, 0.0, 0.0})
     , shoulders_(Matrix34::Zero())
     , currentFootstep_(Matrix34::Zero())
     , nextFootstep_(Matrix34::Zero())
     , footsteps_()
-    , RPY_static(Vector3::Zero())
     , Rz(Matrix3::Zero())
     , dt_cum(VectorN::Zero(N0_gait))
     , yaws(VectorN::Zero(N0_gait))
@@ -31,13 +26,8 @@ Planner::Planner()
     , b_vref(Vector6::Zero())
     , gait_()
     , xref()
-    , maxHeight_(0.05)
-    , lockTime_(0.07)
-    , trajGens_()
-    , targetFootstep_()
-    , nextFootPosition_()
-    , nextFootVelocity_()
-    , nextFootAcceleration_()
+    , trajGen_()
+    , targetFootstep_(Matrix34::Zero())
 {
     footsteps_.fill(Matrix34::Zero());
     Rz(2, 2) = 1.0;
@@ -49,38 +39,42 @@ Planner::Planner(double dt_in,
                  double T_mpc_in,
                  int k_mpc_in,
                  double h_ref_in,
-                 MatrixN const& intialFootsteps,
-                 Matrix34 const& shouldersIn,
-                 Gait& gaitIn)
-    : Planner()
+                 Matrix34 const& intialFootsteps,
+                 Matrix34 const& shouldersIn)
+    : dt(dt_in)
+    , T_gait(T_gait_in)
+    , T_mpc(T_mpc_in)
+    , h_ref(h_ref_in)
+    , k_mpc(k_mpc_in)
+    , k_feedback(0.03)
+    , g(9.81)
+    , L(0.155)
+    , n_steps(0)
+    , shoulders_(shouldersIn)
+    , currentFootstep_(shouldersIn)
+    , nextFootstep_(Matrix34::Zero())
+    , footsteps_()
+    , Rz(Matrix3::Zero())
+    , dt_cum(VectorN::Zero(N0_gait))
+    , yaws(VectorN::Zero(N0_gait))
+    , dx(VectorN::Zero(N0_gait))
+    , dy(VectorN::Zero(N0_gait))
+    , q_tmp(Vector3::Zero())
+    , q_dxdy(Vector3::Zero())
+    , RPY(Vector3::Zero())
+    , b_v(Vector3::Zero())
+    , b_vref(Vector6::Zero())
+    , gait_()
+    , xref()
+    , trajGen_{0.05, 0.07, shouldersIn, intialFootsteps, dt_tsid_in, k_mpc_in}
+    , targetFootstep_(shouldersIn)
 {
-    // Parameters from the main controller
-    dt = dt_in;
-    dt_tsid = dt_tsid_in;
-    T_gait = T_gait_in;
-    T_mpc = T_mpc_in;
-    k_mpc = k_mpc_in;
-    h_ref = h_ref_in;
-    shoulders_ = shouldersIn;
-    currentFootstep_ = shoulders_;
-
-    // Predefining quantities
+    footsteps_.fill(Matrix34::Zero());
+    Rz(2, 2) = 1.0;
     n_steps = (int)std::lround(T_mpc / dt);
+    xref = MatrixN::Zero(12, 1 + n_steps);
 
-    // Initialize xref matrix
-    xref = Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic>::Zero(12, 1 + n_steps);
-
-    gait_ = gaitIn;
-
-    // One foot trajectory generator per leg
-    for (int i = 0; i < 4; i++)
-    {
-        nextFootPosition_[i] = intialFootsteps.col(i);
-        nextFootVelocity_[i] = Vector3::Zero();
-        nextFootAcceleration_[i] = Vector3::Zero();
-        targetFootstep_[i] << shoulders_(0, i), shoulders_(1, i), 0.0;
-        trajGens_[i].initialize(maxHeight_, lockTime_, targetFootstep_[i], nextFootPosition_[i]);
-    }
+    gait_.initialize(dt_in, T_gait_in, T_mpc_in);
 }
 
 
@@ -296,96 +290,16 @@ void Planner::update_target_footsteps()
         {
             index++;
         }
-        targetFootstep_[i] << footsteps_[index](0, i), footsteps_[index](1, i), 0.0;
+        targetFootstep_.col(i) << footsteps_[index](0, i), footsteps_[index](1, i), 0.0;
     }
-}
-
-void Planner::update_trajectory_generator(int k)
-{
-    if ((k % k_mpc) == 0)
-    {
-        // Indexes of feet in swing phase
-        feet.clear();
-        for (int i = 0; i < 4; i++)
-        {
-            if (gait_.getCurrentGait()(0, 1 + i) == 0)
-            {
-                feet.push_back(i);
-            }
-        }
-        // If no foot in swing phase
-        if (feet.size() == 0)
-        {
-            return;
-        }
-
-        // For each foot in swing phase get remaining duration of the swing phase
-        t0s.clear();
-        for (int j = 0; j < (int)feet.size(); j++)
-        {
-            int i = feet[j];
-
-            t_swing[i] = gait_.getPhaseDuration(0, feet[j], 0.0);  // 0.0 for swing phase
-
-            double value = t_swing[i] - (gait_.getRemainingTime() * k_mpc - ((k + 1) % k_mpc)) * dt_tsid - dt_tsid;
-
-            if (value > 0.0)
-            {
-                t0s.push_back(value);
-            }
-            else
-            {
-                t0s.push_back(0.0);
-            }
-        }
-    }
-    else
-    {
-        // If no foot in swing phase
-        if (feet.size() == 0)
-        {
-            return;
-        }
-
-        // Increment of one time step for feet in swing phase
-        for (int i = 0; i < (int)feet.size(); i++)
-        {
-            double value = t0s[i] + dt_tsid;
-            if (value > 0.0)
-            {
-                t0s[i] = value;
-            }
-            else
-            {
-                t0s[i] = 0.0;
-            }
-        }
-    }
-
-    // Get position, velocity and acceleration commands for feet in swing phase
-    for (int i = 0; i < (int)feet.size(); i++)
-    {
-        int i_foot = feet[i];
-
-        trajGens_[i_foot].updateFootPosition(targetFootstep_[i_foot],
-                                             t0s[i],
-                                             t_swing[i_foot],
-                                             dt_tsid);
-
-        nextFootPosition_[i_foot] = trajGens_[i_foot].getFootPosition();
-        nextFootVelocity_[i_foot] = trajGens_[i_foot].getFootVelocity();
-        nextFootAcceleration_[i_foot] = trajGens_[i_foot].getFootAcceleration();
-    }
-
-    return;
 }
 
 void Planner::run_planner(int const k,
                           VectorN const& q,
                           Vector6 const& v,
                           Vector6 const& b_vref,
-                          double const h_estim,
-                          double const z_average)
+                          double const z_average,
+                          int const joystickCode)
 {
     // Get the reference velocity in world frame (given in base frame)
     Eigen::Quaterniond quat(q(6), q(3), q(4), q(5));  // w, x, y, z
@@ -399,10 +313,9 @@ void Planner::run_planner(int const k,
     vref.head(3) = Rz * b_vref.head(3);
 
     // Move one step further in the gait
+    gait_.changeGait(joystickCode, q);
     if (k % k_mpc == 0)
-    {
         gait_.roll(k, footsteps_[1], currentFootstep_);
-    }
 
     // Compute the desired location of footsteps over the prediction horizon
     compute_footsteps(q, v, vref);
@@ -412,26 +325,15 @@ void Planner::run_planner(int const k,
 
     // Update desired location of footsteps on the ground
     update_target_footsteps();
-
-    // Update trajectory generator (3D pos, vel, acc)
-    update_trajectory_generator(k);
+    trajGen_.update(k, targetFootstep_, gait_);
 }
 
 MatrixN Planner::get_xref() { return xref; }
 MatrixN Planner::get_fsteps() { return vectorToMatrix(footsteps_); }
-Matrix3N Planner::get_goals() { return vectorToMatrix(nextFootPosition_); }
-Matrix3N Planner::get_vgoals() { return vectorToMatrix(nextFootVelocity_); }
-Matrix3N Planner::get_agoals() { return vectorToMatrix(nextFootAcceleration_); }
-
-Matrix34 Planner::vectorToMatrix(std::array<Vector3, 4> const& array)
-{
-    Matrix34 M;
-    for (int i = 0; i < 4; i++)
-    {
-        M.col(i) = array[i];
-    }
-    return M;
-}
+MatrixN Planner::get_gait() { return gait_.getCurrentGait(); }
+Matrix3N Planner::get_goals() { return trajGen_.getFootPosition(); }
+Matrix3N Planner::get_vgoals() { return trajGen_.getFootVelocity(); }
+Matrix3N Planner::get_agoals() { return trajGen_.getFootAcceleration(); }
 
 MatrixN Planner::vectorToMatrix(std::array<Matrix34, N0_gait> const& array)
 {

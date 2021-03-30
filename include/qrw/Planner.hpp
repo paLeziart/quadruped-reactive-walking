@@ -58,9 +58,8 @@ public:
             double T_mpc_in,
             int k_mpc_in,
             double h_ref_in,
-            MatrixN const& intialFootsteps,
-            Matrix34 const& shouldersIn,
-            Gait& gaitIn);
+            Matrix34 const& intialFootsteps,
+            Matrix34 const& shouldersIn);
 
     ////////////////////////////////////////////////////////////////////////////////////////////////
     ///
@@ -128,7 +127,7 @@ public:
     /// \param[in] k (int): number of time steps since the start of the simulation
     ///
     ////////////////////////////////////////////////////////////////////////////////////////////////
-    void update_trajectory_generator(int k);
+    void update(int k);
 
     ////////////////////////////////////////////////////////////////////////////////////////////////
     ///
@@ -144,11 +143,11 @@ public:
     ///
     ////////////////////////////////////////////////////////////////////////////////////////////////
     void run_planner(int const k,
-                     VectorN const& q,
-                     Vector6 const& v,
-                     Vector6 const& b_vref,
-                     double const h_estim,
-                     double const z_average);
+                        VectorN const& q,
+                        Vector6 const& v,
+                        Vector6 const& b_vref,
+                        double const z_average,
+                        int const joystickCode);
 
     // Accessors (to retrieve C data from Python)
     MatrixN get_xref();
@@ -159,16 +158,14 @@ public:
     Matrix3N get_agoals();
 
 private:
-    Matrix34 vectorToMatrix(std::array<Vector3, 4> const& array);
     MatrixN vectorToMatrix(std::array<Matrix34, N0_gait> const& array);
 
     // Inputs of the constructor
-    double dt;       // Time step of the contact sequence (time step of the MPC)
-    double dt_tsid;  // Time step of TSID
-    double T_gait;   // Gait period
-    double T_mpc;    // MPC period (prediction horizon)
-    double h_ref;    // Reference height for the trunk
-    int k_mpc;       // Number of TSID iterations for one iteration of the MPC
+    double dt;      // Time step of the contact sequence (time step of the MPC)
+    double T_gait;  // Gait period
+    double T_mpc;   // MPC period (prediction horizon)
+    double h_ref;   // Reference height for the trunk
+    int k_mpc;      // Number of TSID iterations for one iteration of the MPC
 
     // Predefined quantities
     double k_feedback;  // Feedback gain for the feedback term of the planner
@@ -178,18 +175,12 @@ private:
     // Number of time steps in the prediction horizon
     int n_steps;  // T_mpc / time step of the MPC
 
-    // Feet index vector
-    std::vector<int> feet;
-    std::vector<double> t0s;
-    double t_swing[4];
-
     // Constant sized matrices
-    Matrix34 shoulders_;         // Position of shoulders in local frame
+    Matrix34 shoulders_;        // Position of shoulders in local frame
     Matrix34 currentFootstep_;  // Feet matrix in world frame
     Matrix34 nextFootstep_;     // Feet matrix in world frame
+    Matrix34 targetFootstep_;
     std::array<Matrix34, N0_gait> footsteps_;
-
-    Vector3 RPY_static;
 
     Matrix3 Rz;  // Predefined matrices for compute_footstep function
     VectorN dt_cum;
@@ -209,15 +200,7 @@ private:
     // the robot in column 0 and the N steps of the prediction horizon in the others
     MatrixN xref;
 
-    // Foot trajectory generator
-    double maxHeight_;
-    double lockTime_;
-
-    std::array<FootTrajectoryGenerator, 4> trajGens_;
-    std::array<Vector3, 4> targetFootstep_;
-    std::array<Vector3, 4> nextFootPosition_;
-    std::array<Vector3, 4> nextFootVelocity_;
-    std::array<Vector3, 4> nextFootAcceleration_;
+    FootTrajectoryGenerator trajGen_;
 };
 
 #endif  // PLANNER_H_INCLUDED
