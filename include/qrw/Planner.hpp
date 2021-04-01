@@ -88,7 +88,7 @@ public:
     Matrix3N get_agoals();
 
 private:
-    Gait gait_;  // Gait object to hold the gait information
+    std::shared_ptr<Gait> gait_;  // Gait object to hold the gait information
     FootstepPlanner footstepPlanner_;
     FootTrajectoryGenerator fooTrajectoryGenerator_;
     Matrix34 targetFootstep_;

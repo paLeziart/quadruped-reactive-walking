@@ -3,7 +3,8 @@
 // Trajectory generator functions (output reference pos, vel and acc of feet in swing phase)
 
 FootTrajectoryGenerator::FootTrajectoryGenerator()
-    : dt_tsid(0.0)
+    : gait_(nullptr)
+    , dt_tsid(0.0)
     , k_mpc(0)
     , maxHeight_(0.0)
     , lockTime_(0.0)
@@ -25,7 +26,7 @@ void FootTrajectoryGenerator::initialize(double const maxHeightIn,
                                          Matrix34 const& initialFootPosition,
                                          double const& dt_tsid_in,
                                          int const& k_mpc_in,
-                                         Gait& gaitIn)
+                                         std::shared_ptr<Gait> gaitIn)
 {
     dt_tsid = dt_tsid_in;
     k_mpc = k_mpc_in;
@@ -112,7 +113,7 @@ void FootTrajectoryGenerator::update(int k, MatrixN const& targetFootstep)
         feet.clear();
         for (int i = 0; i < 4; i++)
         {
-            if (gait_.getCurrentGait()(0, 1 + i) == 0)
+            if (gait_->getCurrentGait()(0, 1 + i) == 0)
                 feet.push_back(i);
         }
         // If no foot in swing phase
@@ -123,8 +124,8 @@ void FootTrajectoryGenerator::update(int k, MatrixN const& targetFootstep)
         for (int j = 0; j < (int)feet.size(); j++)
         {
             int i = feet[j];
-            t_swing[i] = gait_.getPhaseDuration(0, feet[j], 0.0);  // 0.0 for swing phase
-            double value = t_swing[i] - (gait_.getRemainingTime() * k_mpc - ((k + 1) % k_mpc)) * dt_tsid - dt_tsid;
+            t_swing[i] = gait_->getPhaseDuration(0, feet[j], 0.0);  // 0.0 for swing phase
+            double value = t_swing[i] - (gait_->getRemainingTime() * k_mpc - ((k + 1) % k_mpc)) * dt_tsid - dt_tsid;
             t0s[i] = std::max(0.0, value);
         }
     }

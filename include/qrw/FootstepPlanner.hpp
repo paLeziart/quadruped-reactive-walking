@@ -46,7 +46,7 @@ public:
                     double T_mpc_in,
                     double h_ref_in,
                     Matrix34 const& shouldersIn,
-                    Gait& gaitIn);
+                    std::shared_ptr<Gait> gaitIn);
 
     ////////////////////////////////////////////////////////////////////////////////////////////////
     ///
@@ -121,7 +121,8 @@ private:
 
     MatrixN vectorToMatrix(std::array<Matrix34, N0_gait> const& array);
 
-    // Inputs of the constructor
+    std::shared_ptr<Gait> gait_;  // Gait object to hold the gait informations
+
     double dt;      // Time step of the contact sequence (time step of the MPC)
     double T_gait;  // Gait period
     int k_mpc;      // Number of TSID iterations for one iteration of the MPC
@@ -154,8 +155,6 @@ private:
     Vector3 RPY;
     Vector3 b_v;
     Vector6 b_vref;
-
-    Gait gait_;  // Gait object to hold the gait informations
 
     // Reference trajectory matrix of size 12 by (1 + N)  with the current state of
     // the robot in column 0 and the N steps of the prediction horizon in the others

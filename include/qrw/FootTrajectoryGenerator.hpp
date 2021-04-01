@@ -38,7 +38,7 @@ public:
                     Matrix34 const& initialFootPosition,
                     double const& dt_tsid_in,
                     int const& k_mpc_in,
-                    Gait& gait);
+                    std::shared_ptr<Gait> gait);
 
     ////////////////////////////////////////////////////////////////////////////////////////////////
     ///
@@ -78,7 +78,7 @@ private:
     int k_mpc;          ///<
     double maxHeight_;  ///< Apex height of the swinging trajectory
     double lockTime_;   ///< Target lock before the touchdown
-    Gait gait_;         ///< Target lock before the touchdown
+    std::shared_ptr<Gait> gait_;         ///< Target lock before the touchdown
 
     std::vector<int> feet;
     Vector4 t0s;

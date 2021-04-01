@@ -26,7 +26,7 @@ void FootstepPlanner::initialize(double dt_in,
                                  double T_mpc_in,
                                  double h_ref_in,
                                  Matrix34 const& shouldersIn,
-                                 Gait& gaitIn)
+                                 std::shared_ptr<Gait> gaitIn)
 {
     dt = dt_in;
     k_mpc = k_mpc_in;
@@ -45,7 +45,7 @@ void FootstepPlanner::initialize(double dt_in,
 void FootstepPlanner::compute_footsteps(VectorN const& q, Vector6 const& v, Vector6 const& vref)
 {
     footsteps_.fill(Matrix34::Zero());
-    MatrixN gait = gait_.getCurrentGait();
+    MatrixN gait = gait_->getCurrentGait();
 
     // Set current position of feet for feet in stance phase
     for (int j = 0; j < 4; j++)
@@ -133,7 +133,7 @@ void FootstepPlanner::compute_next_footstep(int i, int j)
 {
     nextFootstep_ = Matrix34::Zero();
 
-    double t_stance = gait_.getPhaseDuration(i, j, 1.0);  // 1.0 for stance phase
+    double t_stance = gait_->getPhaseDuration(i, j, 1.0);  // 1.0 for stance phase
 
     // Add symmetry term
     nextFootstep_.col(j) = t_stance * 0.5 * b_v;
@@ -218,9 +218,9 @@ int FootstepPlanner::getRefStates(VectorN const& q, Vector6 const& v, Vector6 co
         xref(1, 1 + i) += xref(1, 0);
     }
 
-    if (gait_.getIsStatic())
+    if (gait_->getIsStatic())
     {
-        Vector19 q_static = gait_.getQStatic();
+        Vector19 q_static = gait_->getQStatic();
         Eigen::Quaterniond quat(q_static(6, 0), q_static(3, 0), q_static(4, 0), q_static(5, 0));  // w, x, y, z
         RPY << pinocchio::rpy::matrixToRpy(quat.toRotationMatrix());
 
@@ -266,7 +266,7 @@ MatrixN FootstepPlanner::computeTargetFootstep(int const k,
     
 
     if (k % k_mpc == 0)
-        gait_.roll(k, footsteps_[1], currentFootstep_);
+        gait_->roll(k, footsteps_[1], currentFootstep_);
 
     // Compute the desired location of footsteps over the prediction horizon
     compute_footsteps(q, v, vref);
@@ -288,7 +288,7 @@ MatrixN FootstepPlanner::getTargetFootsteps() { return targetFootstep_; }
 MatrixN FootstepPlanner::vectorToMatrix(std::array<Matrix34, N0_gait> const& array)
 {
     MatrixN M = MatrixN::Zero(N0_gait, 13);
-    M.col(0) = gait_.getCurrentGait().col(0);
+    M.col(0) = gait_->getCurrentGait().col(0);
     for (int i = 0; i < N0_gait; i++)
     {
         for (int j = 0; j < 4; j++)
