@@ -32,12 +32,13 @@ public:
     /// \param[in] target desired target location at the end of the swing phase
     ///
     ////////////////////////////////////////////////////////////////////////////////////////////////
-    FootTrajectoryGenerator(double const maxHeightIn,
-                            double const lockTimeIn,
-                            Matrix34 const& targetFootstepIn,
-                            Matrix34 const& initialFootPosition,
-                            double const& dt_tsid_in,
-                            int const& k_mpc_in);
+    void initialize(double const maxHeightIn,
+                    double const lockTimeIn,
+                    Matrix34 const& targetFootstepIn,
+                    Matrix34 const& initialFootPosition,
+                    double const& dt_tsid_in,
+                    int const& k_mpc_in,
+                    Gait& gait);
 
     ////////////////////////////////////////////////////////////////////////////////////////////////
     ///
@@ -65,7 +66,7 @@ public:
     /// \param[in] k (int): number of time steps since the start of the simulation
     ///
     ////////////////////////////////////////////////////////////////////////////////////////////////
-    void update(int k, MatrixN const& targetFootstep, Gait& gait);
+    void update(int k, MatrixN const& targetFootstep);
 
     MatrixN getTargetPosition() { return targetFootstep_; }  ///< Get the foot goal position
     MatrixN getFootPosition() { return position_; }          ///< Get the next foot position
@@ -77,6 +78,7 @@ private:
     int k_mpc;          ///<
     double maxHeight_;  ///< Apex height of the swinging trajectory
     double lockTime_;   ///< Target lock before the touchdown
+    Gait gait_;         ///< Target lock before the touchdown
 
     std::vector<int> feet;
     Vector4 t0s;

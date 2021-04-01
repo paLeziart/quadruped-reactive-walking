@@ -2,6 +2,12 @@
 #define TYPES_H_INCLUDED
 
 #include <Eigen/Eigen>
+#include <Eigen/Core>
+#include <Eigen/Dense>
+#include <cmath>
+#include <fstream>
+#include <iostream>
+#include <string>
 
 using Vector2 = Eigen::Matrix<double, 2, 1>;
 using Vector3 = Eigen::Matrix<double, 3, 1>;

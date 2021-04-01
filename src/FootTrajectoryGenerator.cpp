@@ -19,26 +19,21 @@ FootTrajectoryGenerator::FootTrajectoryGenerator()
 {
 }
 
-FootTrajectoryGenerator::FootTrajectoryGenerator(double const maxHeightIn,
-                                                 double const lockTimeIn,
-                                                 Matrix34 const& targetFootstepIn,
-                                                 Matrix34 const& initialFootPosition,
-                                                 double const& dt_tsid_in,
-                                                 int const& k_mpc_in)
-    : dt_tsid(dt_tsid_in)
-    , k_mpc(k_mpc_in)
-    , maxHeight_(maxHeightIn)
-    , lockTime_(lockTime_)
-    , feet()
-    , t0s(Vector4::Zero())
-    , t_swing(Vector4::Zero())
-    , targetFootstep_(targetFootstepIn)
-    , Ax(Matrix64::Zero())
-    , Ay(Matrix64::Zero())
-    , position_(initialFootPosition)
-    , velocity_(Matrix34::Zero())
-    , acceleration_(Matrix34::Zero())
+void FootTrajectoryGenerator::initialize(double const maxHeightIn,
+                                         double const lockTimeIn,
+                                         Matrix34 const& targetFootstepIn,
+                                         Matrix34 const& initialFootPosition,
+                                         double const& dt_tsid_in,
+                                         int const& k_mpc_in,
+                                         Gait& gaitIn)
 {
+    dt_tsid = dt_tsid_in;
+    k_mpc = k_mpc_in;
+    maxHeight_ = maxHeightIn;
+    lockTime_ = lockTime_;
+    targetFootstep_ = targetFootstepIn;
+    position_ = initialFootPosition;
+    gait_ = gaitIn;
 }
 
 
@@ -109,7 +104,7 @@ void FootTrajectoryGenerator::updateFootPosition(int const j, Vector3 const& tar
     position_(2, j) = Az(3, j) * std::pow(ev, 3) + Az(2, j) * std::pow(ev, 4) + Az(1, j) * std::pow(ev, 5) + Az(0, j) * std::pow(ev, 6);
 }
 
-void FootTrajectoryGenerator::update(int k, MatrixN const& targetFootstep, Gait& gait_)
+void FootTrajectoryGenerator::update(int k, MatrixN const& targetFootstep)
 {
     if ((k % k_mpc) == 0)
     {

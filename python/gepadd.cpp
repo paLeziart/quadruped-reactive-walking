@@ -1,6 +1,4 @@
 #include "qrw/gepadd.hpp"
-#include "qrw/FootTrajectoryGenerator.hpp"
-#include "qrw/Gait.hpp"
 #include "qrw/InvKin.hpp"
 #include "qrw/MPC.hpp"
 #include "qrw/Planner.hpp"
@@ -38,77 +36,6 @@ struct MPCPythonVisitor : public bp::def_visitor<MPCPythonVisitor<MPC>>
 };
 
 void exposeMPC() { MPCPythonVisitor<MPC>::expose(); }
-
-// -------- FOOT TRAJECTORY GENERATOR --------------------------------------------------------------
-
-template <typename FootTrajectoryGenerator>
-struct FootTrajectoryGeneratorVisitor : public bp::def_visitor<FootTrajectoryGeneratorVisitor<FootTrajectoryGenerator>>
-{
-    template <class PyClassFootTrajectoryGenerator>
-    void visit(PyClassFootTrajectoryGenerator& cl) const
-    {
-        cl.def(bp::init<>(bp::arg(""), "Default constructor."))
-            .def(bp::init<double, double, const MatrixN&, const MatrixN&, double, int>(
-                bp::args("maxHeight", "lockTime", "targetFootstep", "initialFootPosition", "dt", "k"),
-                "Constructor with parameters."))
-
-            .def("update_foot_position", &FootTrajectoryGenerator::updateFootPosition, bp::args("foot_id", "targetFootstep"),
-                 "Compute the next position, velocity and acceleration of the foot.\n")
-
-            .def("update", &FootTrajectoryGenerator::update, bp::args("k", "targetFootstep", "gait"),
-                 "Compute the next position, velocity and acceleration of the foot.\n")
-
-            .def("get_target_footstep", &FootTrajectoryGenerator::getTargetPosition, "Get the target foot position.\n")
-            .def("get_position", &FootTrajectoryGenerator::getFootPosition, "Get computed foot position matrix.\n")
-            .def("get_velocity", &FootTrajectoryGenerator::getFootVelocity, "Get computed foot velocity matrix.\n")
-            .def("get_acceleration", &FootTrajectoryGenerator::getFootAcceleration, "Get computed foot acceleration matrix.\n");
-    }
-
-    static void expose()
-    {
-        bp::class_<FootTrajectoryGenerator>("FootTrajectoryGenerator", bp::no_init).def(FootTrajectoryGeneratorVisitor<FootTrajectoryGenerator>());
-
-        ENABLE_SPECIFIC_MATRIX_TYPE(MatrixN);
-    }
-};
-void exposeFootTrajectoryGenerator() { FootTrajectoryGeneratorVisitor<FootTrajectoryGenerator>::expose(); }
-
-// -------- GAIT -----------------------------------------------------------------------------------
-
-template <typename Gait>
-struct GaitVisitor : public bp::def_visitor<GaitVisitor<Gait>>
-{
-    template <class PyClassGait>
-    void visit(PyClassGait& cl) const
-    {
-        cl.def(bp::init<>(bp::arg(""), "Default constructor."))
-            .def("initialize", &Gait::initialize, bp::args("dt_in", "T_gait_in", "T_mpc_in"),
-                 "Initialize Gait class.\n")
-
-            .def("get_phase_duration", &Gait::getPhaseDuration, bp::args("i", "j", "value"),
-                 "Get the duration of the swing or stance phase for a given foot")
-
-            .def("roll", &Gait::roll, bp::args("k", "footstep", "currentFootstep"),
-                 "Get the duration of the swing or stance phase for a given foot")
-
-            .def("change_gait", &Gait::changeGait, bp::args("code", "q"),
-                 "Use the code to change the gait")
-
-            .def("get_current_gait", &Gait::getCurrentGait, "Get the gait.\n")
-            .def("get_desired_gait", &Gait::getDesiredGait, "Get get desired future gait.\n")
-            .def("get_past_gait", &Gait::getPastGait, "Get previous gait.\n")
-            .def("get_remaining_time", &Gait::getRemainingTime, "Get remaining time.\n")
-            .def("get_is_static", &Gait::getIsStatic, "Get is_static.\n")
-            .def("get_q_static", &Gait::getQStatic, "Get q_static.\n");
-    }
-
-    static void expose()
-    {
-        bp::class_<Gait>("Gait", bp::no_init).def(GaitVisitor<Gait>());
-        ENABLE_SPECIFIC_MATRIX_TYPE(MatrixN);
-    }
-};
-void exposeGait() { GaitVisitor<Gait>::expose(); }
 
 
 template <typename Planner>
@@ -208,9 +135,7 @@ BOOST_PYTHON_MODULE(libquadruped_reactive_walking)
     eigenpy::enableEigenPy();
 
     exposeMPC();
-    exposeGait();
     exposePlanner();
-    exposeFootTrajectoryGenerator();
     exposeInvKin();
     exposeQPWBC();
 }
